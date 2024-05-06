@@ -1,29 +1,28 @@
 /*
  * Copyright(c) 2019 Intel Corporation
-*
-* This source code is subject to the terms of the BSD 2 Clause License and
-* the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
-* was not distributed with this source code in the LICENSE file, you can
-* obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
-* Media Patent License 1.0 was not distributed with this source code in the
-* PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
-*/
+ *
+ * This source code is subject to the terms of the BSD 2 Clause License and
+ * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+ * was not distributed with this source code in the LICENSE file, you can
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
+ */
 
 #include <string>
 
 extern "C" {
 #include "EbAppConfig.c"
-#include "EbAppContext.c"
 }
 
 void set_enc_config(void *config_ptr, const char *name, const char *value) {
-    EbConfig *config = (EbConfig *)config_ptr;
-    set_config_value(config, name, value);
+    EbConfig *app_cfg = (EbConfig *)config_ptr;
+    set_config_value(app_cfg, name, value, 0);
 }
 
-bool set_default_config(EbSvtAv1EncConfiguration* config)
-{
-    EbComponentType* handle;
+bool set_default_config(EbSvtAv1EncConfiguration *config) {
+    EbComponentType *handle;
     if (svt_av1_enc_init_handle(&handle, NULL, config) != EB_ErrorNone) {
         return false;
     }
@@ -33,27 +32,25 @@ bool set_default_config(EbSvtAv1EncConfiguration* config)
 
 void release_enc_config(void *config_ptr) {
     if (config_ptr) {
-        EbConfig *config = (EbConfig *)config_ptr;
-        eb_config_dtor(config);
+        EbConfig *app_cfg = (EbConfig *)config_ptr;
+        svt_config_dtor(app_cfg);
     }
 }
 
 void *create_enc_config() {
-    EbConfig *config = eb_config_ctor(ENCODE_SINGLE_PASS);
-    assert(config != NULL);
-    if (!set_default_config(&config->config)) {
-        release_enc_config(config);
-        config = NULL;
+    EbConfig *app_cfg = svt_config_ctor();
+    assert(app_cfg != NULL);
+    if (!set_default_config(&app_cfg->config)) {
+        release_enc_config(app_cfg);
+        app_cfg = NULL;
     }
-    assert(config != NULL);
-    return config;
+    assert(app_cfg != NULL);
+    return app_cfg;
 }
 
 int copy_enc_param(EbSvtAv1EncConfiguration *dst_enc_config, void *config_ptr) {
-    EbConfig *config = (EbConfig *)config_ptr;
-    memcpy(dst_enc_config,
-           &config->config,
-           sizeof(EbSvtAv1EncConfiguration));
+    EbConfig *app_cfg = (EbConfig *)config_ptr;
+    memcpy(dst_enc_config, &app_cfg->config, sizeof(EbSvtAv1EncConfiguration));
     return 0;
 }
 

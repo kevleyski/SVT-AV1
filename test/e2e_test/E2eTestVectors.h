@@ -1,13 +1,14 @@
 /*
-* Copyright(c) 2019 Netflix, Inc.
-*
-* This source code is subject to the terms of the BSD 2 Clause License and
-* the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
-* was not distributed with this source code in the LICENSE file, you can
-* obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
-* Media Patent License 1.0 was not distributed with this source code in the
-* PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
-*/
+ * Copyright(c) 2019 Netflix, Inc.
+ *
+ * This source code is subject to the terms of the BSD 2 Clause License and
+ * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+ * was not distributed with this source code in the LICENSE file, you can
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
+ */
 
 /******************************************************************************
  * @file E2eTestVectors.h
@@ -61,6 +62,13 @@ const std::vector<TestVideoVector> default_test_vectors = {
                     480, 8, 0, 0, 60),
 };
 
+const std::vector<TestVideoVector> default_long_test_vectors = {
+    std::make_tuple("kirland_640_480_30.yuv", YUV_VIDEO_FILE, IMG_FMT_420, 640,
+                    480, 8, 0, 0, 1000),
+    std::make_tuple("niklas_640_480_30.yuv", YUV_VIDEO_FILE, IMG_FMT_420, 640,
+                    480, 8, 0, 0, 1000),
+};
+
 const std::vector<TestVideoVector> incomplete_sb_test_vectors = {
     std::make_tuple("park_joy_90p_8_420.y4m", Y4M_VIDEO_FILE, IMG_FMT_420, 160,
                     90, 8, 0, 0, 0),
@@ -83,14 +91,14 @@ const std::vector<TestVideoVector> screen_test_vectors = {
 const std::vector<TestVideoVector> dummy_test_vectors = {
     std::make_tuple("colorbar_480p_8_420", DUMMY_SOURCE, IMG_FMT_420, 640, 480,
                     8, 0, 0, 100),
-    std::make_tuple("colorbar_4k_8_420", DUMMY_SOURCE, IMG_FMT_420, 4096, 2160,
-                    8, 0, 0, 60),
+    std::make_tuple("colorbar_1080p_8_420", DUMMY_SOURCE, IMG_FMT_420, 1920,
+                    1080, 8, 0, 0, 60),
     std::make_tuple("colorbar_64x64_8_420", DUMMY_SOURCE, IMG_FMT_420, 64, 64,
                     8, 0, 0, 60),
     std::make_tuple("colorbar_480p_10_420", DUMMY_SOURCE, IMG_FMT_420, 640, 480,
                     10, 0, 0, 100),
-    std::make_tuple("colorbar_4k_10_420", DUMMY_SOURCE, IMG_FMT_420, 4096, 2160,
-                    10, 0, 0, 60),
+    std::make_tuple("colorbar_1080p_10_420", DUMMY_SOURCE, IMG_FMT_420, 1920,
+                    1080, 10, 0, 0, 60),
     std::make_tuple("colorbar_64x64_10_420", DUMMY_SOURCE, IMG_FMT_420, 64, 64,
                     10, 0, 0, 60),
 };
@@ -105,11 +113,40 @@ const std::vector<TestVideoVector> dummy_444_test_vectors = {
                     8, 0, 0, 100),
 };
 
+const std::vector<TestVideoVector> segment_test_vectors = {
+    std::make_tuple("niklas_1280_720_30.y4m", Y4M_VIDEO_FILE, IMG_FMT_420, 1280,
+                    720, 8, 0, 0, 0),
+};
+
+typedef std::tuple<std::string,              /**< event name */
+                   uint32_t,                 /**< frame number */
+                   PrivDataType,             /**< event type */
+                   std::vector<std::string>> /**< parameters vector */
+    TestFrameEvent;
+
 using EncSetting = std::map<std::string, std::string>;
 typedef struct EncTestSetting {
     std::string name;    // description of the test cases
     EncSetting setting;  // pairs of encoder setting, {name, value};
     std::vector<TestVideoVector> test_vectors;
+    std::vector<TestFrameEvent> event_vector;
+
+    EncTestSetting(std::string name_str, EncSetting settings,
+                   std::vector<TestVideoVector> videos) {
+        name = name_str;
+        setting = settings;
+        test_vectors = videos;
+    }
+
+    EncTestSetting(std::string name_str, EncSetting settings,
+                   std::vector<TestVideoVector> videos,
+                   std::vector<TestFrameEvent> events) {
+        name = name_str;
+        setting = settings;
+        test_vectors = videos;
+        event_vector = events;
+    }
+
     std::string to_string(std::string& fn) const {
         std::string str = get_setting_str();
         str += "test vector: ";
@@ -170,9 +207,9 @@ typedef struct EncTestSetting {
         return str;
     }
 
-    void append_token(std::string& str, const char* name) const {
+    void append_token(std::string& str, const char* n) const {
         str += " ";
-        str += get_enc_token(name);
+        str += get_enc_token(n);
         str += " ";
     }
 
@@ -230,7 +267,7 @@ static inline const std::vector<EncTestSetting> generate_vector_from_config(
             uint32_t y4m = 0;
             TestVectorFormat file_type;
             char color_fmt[10];
-            VideoColorFormat color_fmt_type;
+            VideoColorFormat color_fmt_type = IMG_FMT_420;
             uint32_t w;
             uint32_t h;
             uint32_t bit_depth;

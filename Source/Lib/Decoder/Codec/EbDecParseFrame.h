@@ -77,11 +77,11 @@ typedef struct ParseCtxt {
     /** symbol decoder Handle */
     SvtReader r;
 
-    SeqHeader *  seq_header;
+    SeqHeader   *seq_header;
     FrameHeader *frame_header;
 
     ParseAboveNbr4x4Ctxt *parse_above_nbr4x4_ctxt;
-    ParseLeftNbr4x4Ctxt * parse_left_nbr4x4_ctxt;
+    ParseLeftNbr4x4Ctxt  *parse_left_nbr4x4_ctxt;
 
     //FRAME_CONTEXT   frm_ctx[DEC_MAX_NUM_FRM_PRLL];
     FRAME_CONTEXT cur_tile_ctx;
@@ -122,7 +122,7 @@ typedef struct ParseCtxt {
     /*!< Reference Loop Restoration Unit  */
     RestorationUnitInfo ref_lr_unit[MAX_MB_PLANE];
 
-    EbBool read_deltas;
+    Bool read_deltas;
 
     /* Buffer holding the delta LF values*/
     int32_t delta_lf[FRAME_LF_COUNT];
@@ -134,7 +134,7 @@ typedef struct ParseCtxt {
     int32_t cur_q_ind;
 } ParseCtxt;
 
-typedef struct MasterParseCtxt {
+typedef struct MainParseCtxt {
     /* Array holding the context for each of the tile.*/
     ParseCtxt *tile_parse_ctxt;
 
@@ -155,22 +155,31 @@ typedef struct MasterParseCtxt {
 
     /* Array of ParseTileData for each Tile */
     ParseTileData *parse_tile_data;
-} MasterParseCtxt;
+} MainParseCtxt;
 
-void parse_super_block(EbDecHandle *dec_handle, ParseCtxt *parse_ctxt, uint32_t blk_row,
-                       uint32_t blk_col, SBInfo *sb_info);
+void svt_aom_parse_super_block(EbDecHandle *dec_handle, ParseCtxt *parse_ctxt, uint32_t blk_row, uint32_t blk_col,
+                               SBInfo *sb_info);
 
-void svt_tile_init(TileInfo *cur_tile_info, FrameHeader *frame_header, int32_t tile_row,
-                   int32_t tile_col);
+void svt_tile_init(TileInfo *cur_tile_info, FrameHeader *frame_header, int32_t tile_row, int32_t tile_col);
 
-EbErrorType init_svt_reader(SvtReader *r, const uint8_t *data, const uint8_t *data_end,
-                            const size_t read_size, uint8_t allow_update_cdf);
+static int read_is_valid(const uint8_t *start, size_t len, const uint8_t *end) {
+    return len != 0 && len <= (size_t)(end - start);
+}
 
-EbErrorType start_parse_tile(EbDecHandle *dec_handle_ptr, ParseCtxt *parse_ctxt,
-                             TilesInfo *tiles_info, int tile_num, int is_mt);
+static INLINE EbErrorType init_svt_reader(SvtReader *r, const uint8_t *data, const uint8_t *data_end,
+                                          const size_t read_size, uint8_t allow_update_cdf) {
+    if (read_is_valid(data, read_size, data_end) && !svt_reader_init(r, data, read_size))
+        r->allow_update_cdf = allow_update_cdf;
+    else
+        return EB_Corrupt_Frame;
+    return EB_ErrorNone;
+}
 
-EbErrorType parse_tile(EbDecHandle *dec_handle_ptr, ParseCtxt *parse_ctx, TilesInfo *tile_info,
-                       int tile_num, int32_t tile_row, int32_t tile_col, int32_t is_mt);
+EbErrorType svt_aom_start_parse_tile(EbDecHandle *dec_handle_ptr, ParseCtxt *parse_ctxt, TilesInfo *tiles_info,
+                                     int tile_num, int is_mt);
+
+EbErrorType parse_tile(EbDecHandle *dec_handle_ptr, ParseCtxt *parse_ctx, TilesInfo *tile_info, int tile_num,
+                       int32_t tile_row, int32_t tile_col, int32_t is_mt);
 
 #ifdef __cplusplus
 }

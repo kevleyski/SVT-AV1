@@ -1,13 +1,14 @@
 /*
-* Copyright(c) 2019 Netflix, Inc.
-*
-* This source code is subject to the terms of the BSD 2 Clause License and
-* the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
-* was not distributed with this source code in the LICENSE file, you can
-* obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
-* Media Patent License 1.0 was not distributed with this source code in the
-* PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
-*/
+ * Copyright(c) 2019 Netflix, Inc.
+ *
+ * This source code is subject to the terms of the BSD 2 Clause License and
+ * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+ * was not distributed with this source code in the LICENSE file, you can
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
+ */
 
 /******************************************************************************
  * @file RefDecoder.cc
@@ -400,11 +401,6 @@ RefDecoder::RefDecoderErr RefDecoder::get_frame(VideoFrame& frame) {
     return REF_CODEC_OK;
 }
 
-void RefDecoder::set_resolution(const uint32_t width, const uint32_t height) {
-    video_param_.width = width;
-    video_param_.height = height;
-}
-
 void RefDecoder::trans_video_frame(const void* image_handle,
                                    VideoFrame& frame) {
     if (image_handle == nullptr)
@@ -420,7 +416,7 @@ void RefDecoder::trans_video_frame(const void* image_handle,
     memcpy(frame.planes, image->planes, sizeof(frame.planes));
     frame.bits_per_sample = image->bit_depth;
     // there is mismatch between "bit_depth" and "fmt", following is a patch
-    if (image->fmt && AOM_IMG_FMT_HIGHBITDEPTH)
+    if (image->fmt & AOM_IMG_FMT_HIGHBITDEPTH)
         frame.bits_per_sample = 10;
     frame.timestamp =
         init_timestamp_ + ((uint64_t)dec_frame_cnt_ * frame_interval_);

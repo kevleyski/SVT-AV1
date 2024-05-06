@@ -1,13 +1,14 @@
 /*
-* Copyright(c) 2019 Netflix, Inc.
-*
-* This source code is subject to the terms of the BSD 2 Clause License and
-* the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
-* was not distributed with this source code in the LICENSE file, you can
-* obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
-* Media Patent License 1.0 was not distributed with this source code in the
-* PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
-*/
+ * Copyright(c) 2019 Netflix, Inc.
+ *
+ * This source code is subject to the terms of the BSD 2 Clause License and
+ * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+ * was not distributed with this source code in the LICENSE file, you can
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
+ */
 
 /******************************************************************************
  * @file DummyVideoSource.h
@@ -37,10 +38,8 @@ static const uint8_t color_bar[3][8] = {
 class DummyVideoSource : public VideoSource {
   public:
     DummyVideoSource(const VideoColorFormat format, const uint32_t width,
-                     const uint32_t height, const uint8_t bit_depth,
-                     const bool use_compressed_2bit_plan_output)
-        : VideoSource(format, width, height, bit_depth,
-                      use_compressed_2bit_plan_output) {
+                     const uint32_t height, const uint8_t bit_depth)
+        : VideoSource(format, width, height, bit_depth) {
         src_name_ = "Dummy Source";
         memset(single_line_pattern, 0, sizeof(single_line_pattern));
     }

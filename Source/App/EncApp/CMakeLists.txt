@@ -12,25 +12,46 @@
 # APP Directory CMakeLists.txt
 
 # Include Subdirectories
-include_directories(${PROJECT_SOURCE_DIR}/Source/API/
-    ${CMAKE_OUTPUT_DIRECTORY}/
-    ${PROJECT_SOURCE_DIR}/third_party/safestringlib)
+include_directories(${PROJECT_SOURCE_DIR}/Source/API/)
 
-file(GLOB all_files
-    "*.h"
-    "../../API/*.h"
-    "*.c")
+set(all_files
+    ../../API/EbDebugMacros.h
+    ../../API/EbSvtAv1.h
+    ../../API/EbSvtAv1Dec.h
+    ../../API/EbSvtAv1Enc.h
+    ../../API/EbSvtAv1ErrorCodes.h
+    ../../API/EbSvtAv1ExtFrameBuf.h
+    ../../API/EbSvtAv1Formats.h
+    ../../API/EbSvtAv1Metadata.h
+    EbAppConfig.c
+    EbAppConfig.h
+    EbAppContext.c
+    EbAppContext.h
+    EbAppInputy4m.c
+    EbAppInputy4m.h
+    EbAppMain.c
+    EbAppOutputivf.c
+    EbAppOutputivf.h
+    EbAppProcessCmd.c
+    EbTime.c
+    EbTime.h
+    )
 
 # App Source Files
 add_executable(SvtAv1EncApp
-    ${all_files}
-    $<TARGET_OBJECTS:safestringlib>)
+    ${all_files})
+
+if(TARGET safestringlib)
+    target_sources(SvtAv1EncApp PRIVATE $<TARGET_OBJECTS:safestringlib>)
+endif()
 
 #********** SET COMPILE FLAGS************
 # Link the Encoder App
 target_link_libraries(SvtAv1EncApp
         SvtAv1Enc)
-if(UNIX)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Android")
+    target_link_libraries(SvtAv1EncApp ${PLATFORM_LIBS})
+elseif(UNIX)
     target_link_libraries(SvtAv1EncApp
         pthread
         m)

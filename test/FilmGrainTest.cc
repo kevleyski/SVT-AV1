@@ -5,9 +5,10 @@
  * This source code is subject to the terms of the BSD 2 Clause License and
  * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
  * was not distributed with this source code in the LICENSE file, you can
- * obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
- * Media Patent License 1.0 was not distributed with this source code in the
- * PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
  */
 #include <stdlib.h>
 
@@ -84,7 +85,8 @@ static AomFilmGrain film_grain_test_vectors[3] = {
         8 /* bit_depth */,
         0 /* chroma_scaling_from_luma*/,
         0 /* grain_scale_shift*/,
-        45231 /* random_seed */
+        45231 /* random_seed */,
+        0 /* ignore_ref */
     },
     /* Test 2 */
     {
@@ -141,7 +143,8 @@ static AomFilmGrain film_grain_test_vectors[3] = {
         8 /* bit_depth */,
         0 /* chroma_scaling_from_luma*/,
         0 /* grain_scale_shift*/,
-        36007 /* random_seed */
+        36007 /* random_seed */,
+        0 /* ignore_ref */
     },
 
     /* Test 3 */
@@ -180,20 +183,21 @@ static AomFilmGrain film_grain_test_vectors[3] = {
         8 /* bit_depth */,
         0 /*chroma_scaling_from_luma*/,
         0 /* grain_scale_shift*/,
-        45231 /* random_seed */
+        45231 /* random_seed */,
+        0 /* ignore_ref */
     },
 };
 
 TEST(FilmGrain, parameters_equality) {
     /* Film grain parameters equality should not depend on random_seed and
      * update_parameters values */
-    EXPECT_EQ(film_grain_params_equal(film_grain_test_vectors,
-                                      film_grain_test_vectors + 1),
+    EXPECT_EQ(svt_aom_film_grain_params_equal(film_grain_test_vectors,
+                                              film_grain_test_vectors + 1),
               1);
 
     /* These two instances of film grain parameters are different */
-    EXPECT_EQ(film_grain_params_equal(film_grain_test_vectors,
-                                      film_grain_test_vectors + 2),
+    EXPECT_EQ(svt_aom_film_grain_params_equal(film_grain_test_vectors,
+                                              film_grain_test_vectors + 2),
               0);
 }
 
@@ -205,15 +209,15 @@ class AddFilmGrainTest : public ::testing::Test {
     static const int chroma_size = luma_size >> 2;
 
     void SetUp() override {
-        luma_ = (uint8_t *)eb_aom_malloc(luma_size);
-        cb_ = (uint8_t *)eb_aom_malloc(chroma_size);
-        cr_ = (uint8_t *)eb_aom_malloc(chroma_size);
+        luma_ = (uint8_t *)svt_aom_malloc(luma_size);
+        cb_ = (uint8_t *)svt_aom_malloc(chroma_size);
+        cr_ = (uint8_t *)svt_aom_malloc(chroma_size);
     }
 
     void TearDown() override {
-        eb_aom_free(luma_);
-        eb_aom_free(cb_);
-        eb_aom_free(cr_);
+        svt_aom_free(luma_);
+        svt_aom_free(cb_);
+        svt_aom_free(cr_);
     }
 
   protected:
@@ -251,17 +255,17 @@ class AddFilmGrainTest : public ::testing::Test {
 TEST_F(AddFilmGrainTest, MatchTest) {
     for (int i = 0; i < 3; ++i) {
         init_data();
-        eb_av1_add_film_grain_run(film_grain_test_vectors + i,
-                                  luma_,
-                                  cb_,
-                                  cr_,
-                                  kHeight,
-                                  kWidth,
-                                  kWidth,     /* luma stride */
-                                  kWidth / 2, /* chroma stride */
-                                  0,
-                                  1,
-                                  1);
+        svt_av1_add_film_grain_run(film_grain_test_vectors + i,
+                                   luma_,
+                                   cb_,
+                                   cr_,
+                                   kHeight,
+                                   kWidth,
+                                   kWidth,     /* luma stride */
+                                   kWidth / 2, /* chroma stride */
+                                   0,
+                                   1,
+                                   1);
         check_output(i);
         EXPECT_FALSE(HasFailure());
     }
@@ -273,7 +277,7 @@ extern "C" {
 #include "EbPictureAnalysisProcess.h"
 }
 
-static void eb_picture_buffer_desc_dctor(EbPtr p) {
+static void svt_picture_buffer_desc_dctor(EbPtr p) {
     EbPictureBufferDesc *obj = (EbPictureBufferDesc *)p;
     if (obj->buffer_enable_mask & PICTURE_BUFFER_DESC_Y_FLAG) {
         EB_FREE_ALIGNED_ARRAY(obj->buffer_y);
@@ -312,11 +316,10 @@ static void denoise_and_model_dctor(EbPtr p) {
     free(obj->flat_blocks);
     for (int32_t i = 0; i < 3; ++i) {
         EB_FREE_ARRAY(obj->denoised[i]);
-        EB_FREE_ARRAY(obj->noise_psd[i]);
         EB_FREE_ARRAY(obj->packed[i]);
     }
-    eb_aom_noise_model_free(&obj->noise_model);
-    eb_aom_flat_block_finder_free(&obj->flat_block_finder);
+    svt_aom_noise_model_free(&obj->noise_model);
+    svt_aom_flat_block_finder_free(&obj->flat_block_finder);
 }
 
 /* clang-format off */
@@ -346,7 +349,8 @@ static AomFilmGrain expected_film_grain = {
     8 /* bit_depth */,
     0 /* chroma_scaling_from_luma */,
     0 /* grain_scale_shift */,
-    0 /* random_seed */
+    0 /* random_seed */,
+    0 /* ignore_ref */
 };
 /* clang-format on */
 
@@ -364,7 +368,7 @@ class DenoiseModelRunTest : public ::testing::Test {
         EbPictureBufferDescInitData pbd_init_data;
         pbd_init_data.max_width = width_;
         pbd_init_data.max_height = height_;
-        pbd_init_data.bit_depth = EB_8BIT;
+        pbd_init_data.bit_depth = EB_EIGHT_BIT;
         // allocate all the components
         pbd_init_data.buffer_enable_mask = PICTURE_BUFFER_DESC_FULL_MASK;
         pbd_init_data.left_padding = 0;
@@ -372,17 +376,18 @@ class DenoiseModelRunTest : public ::testing::Test {
         pbd_init_data.top_padding = 0;
         pbd_init_data.bot_padding = 0;
         pbd_init_data.color_format = EB_YUV420;
-        pbd_init_data.split_mode = EB_FALSE;
+        pbd_init_data.split_mode = FALSE;
 
         subsampling_x_ = (pbd_init_data.color_format == EB_YUV444 ? 1 : 2) - 1;
         subsampling_y_ = (pbd_init_data.color_format >= EB_YUV422 ? 1 : 2) - 1;
 
-        EbErrorType err = eb_picture_buffer_desc_ctor(&in_pic_, &pbd_init_data);
+        EbErrorType err =
+            svt_picture_buffer_desc_ctor(&in_pic_, &pbd_init_data);
         EXPECT_EQ(err, 0) << "create input pic fail";
 
         // create the denoise and noise model
         DenoiseAndModelInitData fg_init_data;
-        fg_init_data.encoder_bit_depth = EB_8BIT;
+        fg_init_data.encoder_bit_depth = EB_EIGHT_BIT;
         fg_init_data.encoder_color_format = EB_YUV420;
         fg_init_data.noise_level = 4;  // TODO: check the range;
         fg_init_data.width = width_;
@@ -392,12 +397,12 @@ class DenoiseModelRunTest : public ::testing::Test {
             fg_init_data.stride_y >> subsampling_x_;
 
         memset(&noise_model, 0, sizeof(noise_model));
-        err = denoise_and_model_ctor(&noise_model, &fg_init_data);
-        EXPECT_EQ(err, 0) << "denoise_and_model_ctor fail";
+        err = svt_aom_denoise_and_model_ctor(&noise_model, &fg_init_data);
+        EXPECT_EQ(err, 0) << "svt_aom_denoise_and_model_ctor fail";
     }
 
     ~DenoiseModelRunTest() {
-        eb_picture_buffer_desc_dctor(&in_pic_);
+        svt_picture_buffer_desc_dctor(&in_pic_);
         denoise_and_model_dctor(&noise_model);
     }
 
@@ -408,25 +413,17 @@ class DenoiseModelRunTest : public ::testing::Test {
         data_ptr_[2] = in_pic_.buffer_cr;
 
         memset(&output_film_grain, 0, sizeof(output_film_grain));
-        // initialize the global function variables since
-        // eb_aom_wiener_denoise_2d will use these vars;
-        {
-            eb_aom_fft2x2_float = eb_aom_fft2x2_float_c;
-            eb_aom_fft4x4_float = eb_aom_fft4x4_float_c;
-            eb_aom_fft16x16_float = eb_aom_fft16x16_float_c;
-            eb_aom_fft32x32_float = eb_aom_fft32x32_float_c;
-            eb_aom_fft8x8_float = eb_aom_fft8x8_float_c;
 
-            eb_aom_ifft16x16_float = eb_aom_ifft16x16_float_avx2;
-            eb_aom_ifft32x32_float = eb_aom_ifft32x32_float_avx2;
-            eb_aom_ifft8x8_float = eb_aom_ifft8x8_float_avx2;
-            eb_aom_ifft2x2_float = eb_aom_ifft2x2_float_c;
-            eb_aom_ifft4x4_float = eb_aom_ifft4x4_float_sse2;
-        }
+#ifdef ARCH_X86_64
+        EbCpuFlags cpu_flags = svt_aom_get_cpu_flags_to_use();
+#else
+        EbCpuFlags cpu_flags = 0;
+#endif
+        svt_aom_setup_rtcd_internal(cpu_flags);
     }
 
     void init_data() {
-        const int shift = EB_8BIT - 8;
+        const int shift = EB_EIGHT_BIT - 8;
         for (int y = 0; y < height_; ++y) {
             for (int x = 0; x < width_; ++x) {
                 data_ptr_[0][y * width_ + x] =
@@ -441,15 +438,15 @@ class DenoiseModelRunTest : public ::testing::Test {
     }
 
     void check_filmgrain() {
-        EXPECT_EQ(
-            film_grain_params_equal(&output_film_grain, &expected_film_grain),
-            1);
+        EXPECT_EQ(svt_aom_film_grain_params_equal(&output_film_grain,
+                                                  &expected_film_grain),
+                  1);
     }
 
     void run_test() {
         init_data();
 
-        eb_aom_denoise_and_model_run(
+        svt_aom_denoise_and_model_run(
             &noise_model, &in_pic_, &output_film_grain, 0);
     }
 

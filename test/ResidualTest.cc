@@ -1,13 +1,14 @@
 /*
-* Copyright(c) 2019 Netflix, Inc.
-*
-* This source code is subject to the terms of the BSD 2 Clause License and
-* the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
-* was not distributed with this source code in the LICENSE file, you can
-* obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
-* Media Patent License 1.0 was not distributed with this source code in the
-* PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
-*/
+ * Copyright(c) 2019 Netflix, Inc.
+ *
+ * This source code is subject to the terms of the BSD 2 Clause License and
+ * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+ * was not distributed with this source code in the LICENSE file, you can
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
+ */
 
 /******************************************************************************
  * @file ResidualTest.cc
@@ -60,21 +61,21 @@ class ResidualTestBase : public ::testing::Test {
     }
 
     void SetUp() override {
-        input_ = (uint8_t *)eb_aom_memalign(8, test_size_);
-        pred_ = (uint8_t *)eb_aom_memalign(8, test_size_);
-        residual1_ = (int16_t *)eb_aom_memalign(16, 2 * test_size_);
-        residual2_ = (int16_t *)eb_aom_memalign(16, 2 * test_size_);
+        input_ = (uint8_t *)svt_aom_memalign(8, test_size_);
+        pred_ = (uint8_t *)svt_aom_memalign(8, test_size_);
+        residual1_ = (int16_t *)svt_aom_memalign(16, 2 * test_size_);
+        residual2_ = (int16_t *)svt_aom_memalign(16, 2 * test_size_);
     }
 
     void TearDown() override {
         if (input_)
-            eb_aom_free(input_);
+            svt_aom_free(input_);
         if (pred_)
-            eb_aom_free(pred_);
+            svt_aom_free(pred_);
         if (residual1_)
-            eb_aom_free(residual1_);
+            svt_aom_free(residual1_);
         if (residual2_)
-            eb_aom_free(residual2_);
+            svt_aom_free(residual2_);
     }
 
   protected:
@@ -92,8 +93,8 @@ class ResidualTestBase : public ::testing::Test {
             break;
         }
         case VAL_RANDOM: {
-            eb_buf_random_u8(input_, test_size_);
-            eb_buf_random_u8(pred_, test_size_);
+            svt_buf_random_u8(input_, test_size_);
+            svt_buf_random_u8(pred_, test_size_);
             break;
         }
         default: break;
@@ -122,14 +123,15 @@ class ResidualTestBase : public ::testing::Test {
     uint32_t test_size_;
 };
 
-typedef void (*svt_residual_kernel8bit_func)(uint8_t *input, uint32_t input_stride,
-                                    uint8_t *pred, uint32_t pred_stride,
-                                    int16_t *residual, uint32_t residual_stride,
-                                    uint32_t area_width, uint32_t area_height);
+typedef void (*svt_residual_kernel8bit_func)(
+    uint8_t *input, uint32_t input_stride, uint8_t *pred, uint32_t pred_stride,
+    int16_t *residual, uint32_t residual_stride, uint32_t area_width,
+    uint32_t area_height);
 
 static const svt_residual_kernel8bit_func residual_kernel8bit_func_table[] = {
+    svt_residual_kernel8bit_sse4_1,
     svt_residual_kernel8bit_avx2,
-#ifndef NON_AVX512_SUPPORT
+#if EN_AVX512_SUPPORT
     svt_residual_kernel8bit_avx512
 #endif
 };
@@ -153,15 +155,15 @@ class ResidualKernelTest
         area_height_ = std::get<1>(TEST_GET_PARAM(0));
         input_stride_ = pred_stride_ = residual_stride_ = MAX_SB_SIZE;
         test_size_ = MAX_SB_SQUARE;
-        input16bit_ = (uint16_t *)eb_aom_memalign(16, 2 * test_size_);
-        pred16bit_ = (uint16_t *)eb_aom_memalign(16, 2 * test_size_);
+        input16bit_ = (uint16_t *)svt_aom_memalign(16, 2 * test_size_);
+        pred16bit_ = (uint16_t *)svt_aom_memalign(16, 2 * test_size_);
     }
 
     ~ResidualKernelTest() {
         if (input16bit_)
-            eb_aom_free(input16bit_);
+            svt_aom_free(input16bit_);
         if (pred16bit_)
-            eb_aom_free(pred16bit_);
+            svt_aom_free(pred16bit_);
     }
 
   protected:
@@ -180,8 +182,8 @@ class ResidualKernelTest
             break;
         }
         case VAL_RANDOM: {
-            eb_buf_random_u16(input16bit_, test_size_);
-            eb_buf_random_u16(pred16bit_, test_size_);
+            svt_buf_random_u16(input16bit_, test_size_);
+            svt_buf_random_u16(pred16bit_, test_size_);
             break;
         }
         default: break;
@@ -200,10 +202,10 @@ class ResidualKernelTest
                                   area_width_,
                                   area_height_);
 
-        for (int i = 0; i < (int) (sizeof(residual_kernel8bit_func_table) /
-                                sizeof(*residual_kernel8bit_func_table));
+        for (int i = 0; i < (int)(sizeof(residual_kernel8bit_func_table) /
+                                  sizeof(*residual_kernel8bit_func_table));
              i++) {
-            eb_buf_random_s16(residual2_, test_size_);
+            svt_buf_random_s16(residual2_, test_size_);
             residual_kernel8bit_func_table[i](input_,
                                               input_stride_,
                                               pred_,
@@ -245,22 +247,22 @@ class ResidualKernelTest
                                                          middle_time_seconds,
                                                          middle_time_useconds);
 
-        for (int i = 0; i < (int) (sizeof(residual_kernel8bit_func_table) /
-                                sizeof(*residual_kernel8bit_func_table));
+        for (int i = 0; i < (int)(sizeof(residual_kernel8bit_func_table) /
+                                  sizeof(*residual_kernel8bit_func_table));
              i++) {
-            eb_buf_random_s16(residual2_, test_size_);
+            svt_buf_random_s16(residual2_, test_size_);
 
             svt_av1_get_time(&middle_time_seconds, &middle_time_useconds);
 
             for (uint64_t j = 0; j < num_loop; j++) {
                 residual_kernel8bit_func_table[i](input_,
-                                             input_stride_,
-                                             pred_,
-                                             pred_stride_,
-                                             residual2_,
-                                             residual_stride_,
-                                             area_width_,
-                                             area_height_);
+                                                  input_stride_,
+                                                  pred_,
+                                                  pred_stride_,
+                                                  residual2_,
+                                                  residual_stride_,
+                                                  area_width_,
+                                                  area_height_);
             }
             check_residuals(area_width_, area_height_);
 
@@ -299,8 +301,6 @@ class ResidualKernelTest
                                    area_height_);
 
         check_residuals(area_width_, area_height_);
-
-
     }
 
     void run_16bit_test_avx2() {
@@ -346,102 +346,4 @@ INSTANTIATE_TEST_CASE_P(ResidualUtil, ResidualKernelTest,
                         ::testing::Combine(::testing::ValuesIn(TEST_AREA_SIZES),
                                            ::testing::ValuesIn(TEST_PATTERNS)));
 
-typedef void (*SUB_SAMPLED_TEST_FUNC)(uint8_t *input, uint32_t input_stride,
-                                      uint8_t *pred, uint32_t pred_stride,
-                                      int16_t *residual,
-                                      uint32_t residual_stride,
-                                      uint32_t area_width, uint32_t area_height,
-                                      uint8_t last_line);
-
-typedef struct SubSampledParam {
-    AreaSize area_size;
-    SUB_SAMPLED_TEST_FUNC test_func;
-} SubSampledParam;
-typedef std::tuple<TestPattern, SubSampledParam> TestSubParam;
-
-class ResidualSubSampledTest
-    : public ResidualTestBase,
-      public ::testing::WithParamInterface<TestSubParam> {
-  public:
-    ResidualSubSampledTest() : ResidualTestBase(TEST_GET_PARAM(0)) {
-        area_width_ = std::get<0>(TEST_GET_PARAM(1).area_size);
-        area_height_ = std::get<1>(TEST_GET_PARAM(1).area_size);
-        sub_sampled_test_func_ = TEST_GET_PARAM(1).test_func;
-        input_stride_ = pred_stride_ = residual_stride_ = MAX_PU_SIZE;
-        test_size_ = MAX_PU_SIZE * MAX_PU_SIZE;
-    }
-
-  protected:
-    void run_sub_sample_test() {
-        prepare_data();
-
-        sub_sampled_test_func_(input_,
-                               input_stride_,
-                               pred_,
-                               pred_stride_,
-                               residual1_,
-                               residual_stride_,
-                               area_width_,
-                               area_height_,
-                               false);
-
-        check_residuals(area_width_, area_height_);
-    }
-
-    SUB_SAMPLED_TEST_FUNC sub_sampled_test_func_;
-};
-
-TEST_P(ResidualSubSampledTest, MatchTest) {
-    run_sub_sample_test();
-};
-
-typedef std::tuple<int, TestPattern> TestSumParam;
-
-class ResidualSumTest : public ::testing::Test,
-                        public ::testing::WithParamInterface<TestSumParam> {
-  public:
-    ResidualSumTest() {
-        test_pattern_ = TEST_GET_PARAM(1);
-        size_ = TEST_GET_PARAM(0);
-        residual_stride_ = MAX_SB_SIZE;
-        residual_ = (int16_t *)eb_aom_memalign(16, 2 * MAX_SB_SQUARE);
-    }
-
-    ~ResidualSumTest() {
-        if (residual_)
-            eb_aom_free(residual_);
-    }
-
-  protected:
-    void prepare_data() {
-        // There is an assumption in sum_residual8bit_avx2_intrin, which is
-        // 9bit or 11bit residual data.
-        const int16_t mask = (1 << 10) - 1;
-        SVTRandom rnd(-(1 << 10), mask);
-        switch (test_pattern_) {
-        case VAL_MIN: {
-            memset(residual_, 0, MAX_SB_SQUARE * sizeof(residual_[0]));
-            break;
-        }
-        case VAL_MAX: {
-            for (uint32_t i = 0; i < MAX_SB_SQUARE; ++i)
-                residual_[i] = mask;
-            break;
-        }
-        case VAL_RANDOM: {
-            for (uint32_t i = 0; i < MAX_SB_SQUARE; ++i)
-                residual_[i] = rnd.random();
-            break;
-        }
-        default: break;
-        }
-    }
-    uint32_t size_;
-    TestPattern test_pattern_;
-    int16_t *residual_;
-    uint32_t residual_stride_;
-};
-INSTANTIATE_TEST_CASE_P(ResidualUtil, ResidualSumTest,
-                        ::testing::Combine(::testing::Values(4, 8, 16, 32, 64),
-                                           ::testing::ValuesIn(TEST_PATTERNS)));
 }  // namespace

@@ -17,7 +17,10 @@
 #include "EbSvtAv1Enc.h"
 #include "EbPictureControlSet.h"
 #include "EbObject.h"
+#include "EbInvTransforms.h"
 
+#define MINQ_ADJ_LIMIT 48
+#define HIGH_UNDERSHOOT_RATIO 2
 #define CCOEFF_INIT_FACT 2
 #define SAD_CLIP_COEFF 5
 // 88 + 3*16*8
@@ -25,15 +28,6 @@
 #define RC_PRECISION 16
 #define RC_PRECISION_OFFSET (1 << (RC_PRECISION - 1))
 
-#define OVERSHOOT_STAT_PRINT 0
-/* Do not remove
- * For printing overshooting percentages for both RC and fixed QP.
- * Target rate and and max buffer size should be set properly even for fixed QP.
- * Disabled by default.
-*/
-#if OVERSHOOT_STAT_PRINT
-#define CODED_FRAMES_STAT_QUEUE_MAX_DEPTH 10000
-#endif
 #define RC_PRINTS 0
 #define ADAPTIVE_PERCENTAGE 1
 
@@ -52,23 +46,9 @@
 
 #define MIN_GF_INTERVAL 4
 #define MAX_GF_INTERVAL 32
-#define FIXED_GF_INTERVAL 8  // Used in some testing modes only
+#define FIXED_GF_INTERVAL 8 // Used in some testing modes only
 #define MAX_GF_LENGTH_LAP 16
-
-#define MAX_NUM_GF_INTERVALS 15
-
 #define MAX_ARF_LAYERS 6
-
-enum {
-    KF_UPDATE,
-    LF_UPDATE,
-    GF_UPDATE,
-    ARF_UPDATE,
-    OVERLAY_UPDATE,
-    INTNL_OVERLAY_UPDATE,  // Internal Overlay Frame
-    INTNL_ARF_UPDATE,      // Internal Altref Frame
-    FRAME_UPDATE_TYPES
-} UENUM1BYTE(FRAME_UPDATE_TYPE);
 
 typedef enum rate_factor_level {
     INTER_NORMAL       = 0,
@@ -79,79 +59,69 @@ typedef enum rate_factor_level {
     KF_STD             = 5,
     RATE_FACTOR_LEVELS = 6
 } rate_factor_level;
+#define CODED_FRAMES_STAT_QUEUE_MAX_DEPTH 2000
+// max bit rate average period
+#define MAX_RATE_AVG_PERIOD (CODED_FRAMES_STAT_QUEUE_MAX_DEPTH >> 1)
+#define CRITICAL_BUFFER_LEVEL 15
+#define OPTIMAL_BUFFER_LEVEL 70
+/**************************************
+ * Coded Frames Stats
+ **************************************/
+typedef struct coded_frames_stats_entry {
+    EbDctor  dctor;
+    uint64_t picture_number;
+    int64_t  frame_total_bit_actual;
+    Bool     end_of_sequence_flag;
+} coded_frames_stats_entry;
 
+typedef enum {
+    NO_RESIZE      = 0,
+    DOWN_THREEFOUR = 1, // From orig to 3/4.
+    DOWN_ONEHALF   = 2, // From orig or 3/4 to 1/2.
+    UP_THREEFOUR   = -1, // From 1/2 to 3/4.
+    UP_ORIG        = -2, // From 1/2 or 3/4 to orig.
+} RESIZE_ACTION;
+
+typedef enum { ORIG = 0, THREE_QUARTER = 1, ONE_HALF = 2 } RESIZE_STATE;
+
+/*!
+ * \brief Desired dimensions for an externally triggered resize.
+ *
+ * When resize is triggered externally, the desired dimensions are stored in
+ * this struct until used in the next frame to be coded. These values are
+ * effective only for one frame and are reset after they are used.
+ */
 typedef struct {
-    // Rate targetting variables
-    int base_frame_target; // A baseline frame target before adjustment
-        // for previous under or over shoot.
-    int this_frame_target; // Actual frame target after rc adjustment.
-    int projected_frame_size;
-    int sb64_target_rate;
-    int last_q[FRAME_TYPES]; // Separate values for Intra/Inter
-    int last_boosted_qindex; // Last boosted GF/KF/ARF q
-    int last_kf_qindex; // Q index of the last key frame coded.
+    RESIZE_STATE resize_state;
+    uint8_t      resize_denom;
+} ResizePendingParams;
 
-    int gfu_boost;
-    int kf_boost;
-
-    double rate_correction_factors[RATE_FACTOR_LEVELS];
-
-    int frames_since_golden;
-    int frames_till_gf_update_due;
-    int min_gf_interval;
-    int max_gf_interval;
-    int static_scene_max_gf_interval;
-    int baseline_gf_interval;
-    int constrained_gf_group;
-    int frames_to_key;
-    int frames_since_key;
-    int this_key_frame_forced;
-    int next_key_frame_forced;
-    int source_alt_ref_pending;
-    int source_alt_ref_active;
-    int is_src_frame_alt_ref;
-    int sframe_due;
-
-    // Length of the bi-predictive frame group interval
-    int bipred_group_interval;
-
-    // NOTE: Different types of frames may have different bits allocated
-    //       accordingly, aiming to achieve the overall optimal RD performance.
-    int is_bwd_ref_frame;
-    int is_last_bipred_frame;
-    int is_bipred_frame;
-    int is_src_frame_ext_arf;
-
-    int avg_frame_bandwidth; // Average frame size target for clip
-    int min_frame_bandwidth; // Minimum allocation used for any frame
-    int max_frame_bandwidth; // Maximum burst rate allowed for a frame.
-
-    int    ni_av_qi;
-    int    ni_tot_qi;
-    int    ni_frames;
-    int    avg_frame_qindex[FRAME_TYPES];
-    double tot_q;
-    double avg_q;
-
+extern EbErrorType svt_aom_rate_control_coded_frames_stats_context_ctor(coded_frames_stats_entry *entry_ptr,
+                                                                        uint64_t                  picture_number);
+typedef struct {
+    int     last_boosted_qindex; // Last boosted GF/KF/ARF q
+    int     gfu_boost;
+    int     kf_boost;
+    double  rate_correction_factors[MAX_TEMPORAL_LAYERS + 1];
+    int     onepass_cbr_mode; // 0: not 1pass cbr, 1: 1pass cbr for low delay
+    int     baseline_gf_interval;
+    int     constrained_gf_group;
+    int     frames_to_key;
+    int     frames_since_key;
+    int     this_key_frame_forced;
+    int     avg_frame_bandwidth; // Average frame size target for clip
+    int     max_frame_bandwidth; // Maximum burst rate allowed for a frame.
+    int     avg_frame_qindex[FRAME_TYPES];
     int64_t buffer_level;
     int64_t bits_off_target;
     int64_t vbr_bits_off_target;
     int64_t vbr_bits_off_target_fast;
-
-    int decimation_factor;
-    int decimation_count;
-
-    int rolling_target_bits;
-    int rolling_actual_bits;
-
-    int long_rolling_target_bits;
-    int long_rolling_actual_bits;
-
-    int rate_error_estimate;
+    int     rolling_target_bits;
+    int     rolling_actual_bits;
+    int     rate_error_estimate;
 
     int64_t total_actual_bits;
     int64_t total_target_bits;
-    int64_t total_target_vs_actual;
 
     int worst_quality;
     int best_quality;
@@ -179,38 +149,47 @@ typedef struct {
     int prev_avg_frame_bandwidth; //only for CBR?
     int active_worst_quality;
     int active_best_quality[MAX_ARF_LAYERS + 1];
-    int base_layer_qp;
-
-    // number of determined gf group length left
-    int intervals_till_gf_calculate_due;
-    // stores gf group length intervals
-    int gf_intervals[MAX_NUM_GF_INTERVALS];
-    // the current index in gf_intervals
-    int cur_gf_index;
 
     // gop bit budget
     int64_t gf_group_bits;
-
-    // Total number of stats used only for kf_boost calculation.
-    int num_stats_used_for_kf_boost;
     // Total number of stats used only for gfu_boost calculation.
     int num_stats_used_for_gfu_boost;
     // Total number of stats required by gfu_boost calculation.
     int num_stats_required_for_gfu_boost;
-    int enable_scenecut_detection;
-    int use_arf_in_this_kf_group;
-    int next_is_fwd_key;
+    // Rate Control stat Queue
+    coded_frames_stats_entry **coded_frames_stat_queue;
+    uint32_t                   coded_frames_stat_queue_head_index;
+    uint32_t                   coded_frames_stat_queue_tail_index;
+
+    uint64_t total_bit_actual_per_sw;
+    uint64_t max_bit_actual_per_sw;
+    uint64_t max_bit_actual_per_gop;
+    uint64_t min_bit_actual_per_gop;
+    uint64_t avg_bit_actual_per_gop;
+    uint64_t rate_average_periodin_frames;
+
+    EbHandle rc_mutex;
+    // For dynamic resize, 1 pass cbr.
+    RESIZE_STATE resize_state;
+    int32_t      resize_avg_qp;
+    int32_t      resize_buffer_underflow;
+    int32_t      resize_count;
+    int32_t      last_q[FRAME_TYPES]; // Q used on last encoded frame of the given type.
+
+    // current and previous average base layer ME distortion
+    uint32_t cur_avg_base_me_dist;
+    uint32_t prev_avg_base_me_dist;
 } RATE_CONTROL;
 
 /**************************************
  * Input Port Types
  **************************************/
 typedef enum RateControlInputPortTypes {
-    RATE_CONTROL_INPUT_PORT_PICTURE_MANAGER = 0,
-    RATE_CONTROL_INPUT_PORT_PACKETIZATION   = 1,
-    RATE_CONTROL_INPUT_PORT_ENTROPY_CODING  = 2,
-    RATE_CONTROL_INPUT_PORT_TOTAL_COUNT     = 3,
-    RATE_CONTROL_INPUT_PORT_INVALID         = ~0,
+    RATE_CONTROL_INPUT_PORT_INLME          = 0,
+    RATE_CONTROL_INPUT_PORT_PACKETIZATION  = 1,
+    RATE_CONTROL_INPUT_PORT_ENTROPY_CODING = 2,
+    RATE_CONTROL_INPUT_PORT_TOTAL_COUNT    = 3,
+    RATE_CONTROL_INPUT_PORT_INVALID        = ~0,
 } RateControlInputPortTypes;
 
 /**************************************
@@ -221,74 +200,37 @@ typedef struct RateControlPorts {
     uint32_t                  count;
 } RateControlPorts;
 
+typedef enum PicMgrInputPortTypes {
+    PIC_MGR_INPUT_PORT_SOP           = 0,
+    PIC_MGR_INPUT_PORT_PACKETIZATION = 1,
+    PIC_MGR_INPUT_PORT_REST          = 2,
+    PIC_MGR_INPUT_PORT_TOTAL_COUNT   = 3,
+    PIC_MGR_INPUT_PORT_INVALID       = ~0,
+} PicMgrInputPortTypes;
+typedef struct PicMgrPorts {
+    PicMgrInputPortTypes type;
+    uint32_t             count;
+} PicMgrPorts;
 /**************************************
  * Context
  **************************************/
 
-typedef struct RateControlLayerContext {
-    EbDctor  dctor;
-    uint64_t previous_frame_distortion_me;
-    uint64_t previous_frame_bit_actual;
-    uint64_t previous_framequantized_coeff_bit_actual;
-    EbBool   feedback_arrived;
-
-    uint64_t target_bit_rate;
-    uint64_t frame_rate;
-    uint64_t channel_bit_rate;
-
-    uint64_t previous_bit_constraint;
-    uint64_t bit_constraint;
-    uint64_t ec_bit_constraint;
-    uint64_t previous_ec_bits;
-    int64_t  dif_total_and_ec_bits;
-
-    int64_t  bit_diff;
-    uint32_t coeff_averaging_weight1;
-    uint32_t coeff_averaging_weight2; // coeff_averaging_weight2 = 16- coeff_averaging_weight1
-    //Ccoeffs have 2*RC_PRECISION precision
-    int64_t c_coeff;
-    int64_t previous_c_coeff;
-    //Kcoeffs have RC_PRECISION precision
-    uint64_t k_coeff;
-    uint64_t previous_k_coeff;
-
-    //delta_qp_fraction has RC_PRECISION precision
-    int64_t  delta_qp_fraction;
-    uint32_t previous_frame_qp;
-    uint32_t calculated_frame_qp;
-    uint32_t previous_calculated_frame_qp;
-    uint32_t area_in_pixel;
-    uint32_t previous_frame_average_qp;
-
-    //total_mad has RC_PRECISION precision
-    uint64_t total_mad;
-
-    uint32_t first_frame;
-    uint32_t first_non_intra_frame;
-    uint32_t same_distortion_count;
-    uint32_t frame_same_distortion_min_qp_count;
-    uint32_t critical_states;
-
-    uint32_t max_qp;
-    uint32_t temporal_index;
-
-    uint64_t alpha;
-    //segmentation
-    int32_t prev_segment_qps[MAX_SEGMENTS];
-
-} RateControlLayerContext;
-
 /**************************************
  * Extern Function Declarations
  **************************************/
-double eb_av1_convert_qindex_to_q(int32_t qindex, AomBitDepth bit_depth);
-int svt_av1_rc_get_default_min_gf_interval(int width, int height, double framerate);
-int svt_av1_rc_get_default_max_gf_interval(double framerate, int min_gf_interval);
-double svt_av1_get_gfu_boost_projection_factor(double min_factor, double max_factor, int frame_count);
+int32_t svt_av1_convert_qindex_to_q_fp8(int32_t qindex, EbBitDepth bit_depth);
+double  svt_av1_convert_qindex_to_q(int32_t qindex, EbBitDepth bit_depth);
+double  svt_av1_get_gfu_boost_projection_factor(double min_factor, double max_factor, int frame_count);
 
-EbErrorType rate_control_context_ctor(EbThreadContext *  thread_context_ptr,
-                                      const EbEncHandle *enc_handle_ptr);
+EbErrorType svt_aom_rate_control_context_ctor(EbThreadContext *thread_ctx, const EbEncHandle *enc_handle_ptr,
+                                              int me_port_index);
 
-extern void *rate_control_kernel(void *input_ptr);
+extern void *svt_aom_rate_control_kernel(void *input_ptr);
+int svt_aom_compute_rd_mult_based_on_qindex(EbBitDepth bit_depth, SvtAv1FrameUpdateType update_type, int qindex);
+struct PictureControlSet;
+int svt_aom_compute_rd_mult(struct PictureControlSet *pcs, uint8_t q_index, uint8_t me_q_index, uint8_t bit_depth);
+int svt_aom_compute_fast_lambda(struct PictureControlSet *pcs, uint8_t q_index, uint8_t me_q_index, uint8_t bit_depth);
+struct PictureParentControlSet;
+void svt_aom_cyclic_refresh_init(struct PictureParentControlSet *ppcs);
 
 #endif // EbRateControl_h

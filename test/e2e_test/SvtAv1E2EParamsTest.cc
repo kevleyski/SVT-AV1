@@ -1,13 +1,14 @@
 /*
-* Copyright(c) 2019 Netflix, Inc.
-*
-* This source code is subject to the terms of the BSD 2 Clause License and
-* the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
-* was not distributed with this source code in the LICENSE file, you can
-* obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
-* Media Patent License 1.0 was not distributed with this source code in the
-* PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
-*/
+ * Copyright(c) 2019 Netflix, Inc.
+ *
+ * This source code is subject to the terms of the BSD 2 Clause License and
+ * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+ * was not distributed with this source code in the LICENSE file, you can
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
+ */
 
 /******************************************************************************
  * @file SvtAv1E2EParamsTest.cc
@@ -94,15 +95,6 @@ static const std::vector<EncTestSetting> default_enc_settings = {
 
     // test rc mode {2, 3}, with {1Mbps, 0.75Mbps, 0.5Mbps} setting with
     // 480p
-    {"RcTest1",
-     {{"RateControlMode", "2"}, {"TargetBitRate", "1000000"}},
-     default_test_vectors},
-    {"RcTest2",
-     {{"RateControlMode", "2"}, {"TargetBitRate", "750000"}},
-     res_480p_test_vectors},
-    {"RcTest3",
-     {{"RateControlMode", "2"}, {"TargetBitRate", "500000"}},
-     res_480p_test_vectors},
     {"RcTest4",
      {{"RateControlMode", "1"}, {"TargetBitRate", "1000000"}},
      res_480p_test_vectors},
@@ -114,15 +106,6 @@ static const std::vector<EncTestSetting> default_enc_settings = {
      res_480p_test_vectors},
 
     // test high bitrate with big min_qp, or low bitrate with small max_qp
-    {"RcQpTest1",
-     {{"RateControlMode", "2"}, {"TargetBitRate", "1000000"}, {"MinQpAllowed", "20"}},
-     res_480p_test_vectors},
-    {"RcQpTest2",
-     {{"RateControlMode", "2"}, {"TargetBitRate", "500000"}, {"MaxQpAllowed", "50"}},
-     res_480p_test_vectors},
-    {"RcQpTest3",
-     {{"RateControlMode", "2"}, {"TargetBitRate", "750000"}, {"MaxQpAllowed", "50"}, {"MinQpAllowed", "20"}},
-     res_480p_test_vectors},
     {"RcQpTest4",
      {{"RateControlMode", "1"}, {"TargetBitRate", "1000000"}, {"MinQpAllowed", "20"}},
      res_480p_test_vectors},
@@ -161,11 +144,6 @@ class CodingOptionTest : public SvtAv1E2ETestFramework {
             << "config profile: " << config->profile << "got "
             << stream_info->profile;
 
-        // verify the superblock size
-        EXPECT_EQ(config->super_block_size, stream_info->sb_size)
-            << "config sb size: " << config->super_block_size << " got "
-            << stream_info->sb_size;
-
         // Verify bit depth
         EXPECT_EQ(config->encoder_bit_depth, stream_info->bit_depth)
             << "config bitdepth: " << config->encoder_bit_depth << " got "
@@ -192,21 +170,9 @@ class CodingOptionTest : public SvtAv1E2ETestFramework {
         EXPECT_GE(config->max_qp_allowed, actual_max_qp)
             << "Max qp allowd " << config->max_qp_allowed << " actual "
             << actual_max_qp;
-        if (config->rate_control_mode == 0) {
+        if (config->rate_control_mode == SVT_AV1_RC_MODE_CQP_OR_CRF) {
             EXPECT_EQ(actual_min_qp, actual_max_qp)
                 << "QP fluctuate in const qp mode";
-        }
-
-        // verify the bitrate
-        if (config->rate_control_mode == 3) {
-            uint32_t avg_bit_rate =
-                (config->frame_rate > 1000 ? config->frame_rate >> 16
-                                           : config->frame_rate) *
-                stream_info->frame_bit_rate;
-            printf("%d--%d\n", config->target_bit_rate, avg_bit_rate);
-            EXPECT_GE(config->target_bit_rate, avg_bit_rate)
-                << "target bit-rate is less than actual: "
-                << config->target_bit_rate << "--" << avg_bit_rate;
         }
 
         // verify tile row and tile column
@@ -226,40 +192,6 @@ class CodingOptionTest : public SvtAv1E2ETestFramework {
         EXPECT_EQ(expect_rows, stream_info->tile_rows)
             << "Tile rows " << stream_info->tile_rows << " actual"
             << expect_rows;
-
-        //
-        // Verify the coding tools by checking the sps header
-        //
-        EXPECT_EQ(stream_info->enable_warped_motion,
-                  config->enable_warped_motion);
-    }
-
-    bool is_valid_profile_setting() {
-        /** check the color format according to spec 6.4.1 */
-        if (av1enc_ctx_.enc_params.profile == 0) {
-            /** main profile requires YUV420 or YUV400 Annex A */
-            if (av1enc_ctx_.enc_params.encoder_bit_depth == 12)
-                return false;
-            if (av1enc_ctx_.enc_params.encoder_color_format != EB_YUV420 &&
-                av1enc_ctx_.enc_params.encoder_color_format != EB_YUV400) {
-                return false;
-            }
-        } else if (av1enc_ctx_.enc_params.profile == 1) {
-            /** high profile requires 8bit/10bit YUV444 */
-            if (av1enc_ctx_.enc_params.encoder_bit_depth == 12)
-                return false;
-            if (av1enc_ctx_.enc_params.encoder_color_format != EB_YUV444)
-                return false;
-        } else if (av1enc_ctx_.enc_params.profile == 2) {
-            /** professional profile requires 8-bit/10-bit YUV422 or 12-bit
-             *  YUV400, YUV420, YUV422 and YUV444
-             */
-            if (av1enc_ctx_.enc_params.encoder_bit_depth != 12 &&
-                av1enc_ctx_.enc_params.encoder_color_format != EB_YUV422) {
-                return false;
-            }
-        }
-        return true;
     }
 };
 

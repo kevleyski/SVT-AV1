@@ -21,17 +21,25 @@ include_directories(../../../API
     ${PROJECT_SOURCE_DIR}/Source/Lib/Encoder/ASM_AVX2/
     ${PROJECT_SOURCE_DIR}/Source/Lib/Encoder/ASM_AVX512/)
 
-set(flags_to_test -msse4.1)
+check_both_flags_add(-msse4.1)
 
 if(CMAKE_C_COMPILER_ID STREQUAL "Intel" AND NOT WIN32)
-    list(APPEND flags_to_test -static-intel -w)
+    check_both_flags_add(-static-intel -w)
 endif()
 
-test_apply_compiler_flags(${flags_to_test})
-
-file(GLOB all_files
-    "*.h"
-    "*.asm"
-    "*.c")
+set(all_files
+    EbCdef_sse4.c
+    EbComputeSAD_Intrinsic_SSE4_1.c
+    EbTemporalFiltering_SSE4_1.c
+    EbTemporalFiltering_constants.h
+    av1_quantize_sse4_1.c
+    av1_txfm1d_sse4.h
+    av1_txfm_sse4.h
+    corner_match_sse4.c
+    encodetxb_sse4.c
+    highbd_fwd_txfm_sse4.c
+    obmc_variance_sse4.c
+    pickrst_sse4.c
+    )
 
 add_library(ENCODER_ASM_SSE4_1 OBJECT ${all_files})

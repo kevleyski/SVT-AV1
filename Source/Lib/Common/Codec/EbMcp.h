@@ -12,21 +12,10 @@
 #ifndef EBMCP_H
 #define EBMCP_H
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 #define USE_PRE_COMPUTE 0
-
-typedef struct MotionCompensationPredictionContext {
-    EbDctor dctor;
-    EbByte  avc_style_mcp_intermediate_result_buf0; // For short filter in MD
-    EbByte  avc_style_mcp_intermediate_result_buf1; // For short filter in MD
-#if !USE_PRE_COMPUTE
-    EbByte avc_style_mcp_two_d_interpolation_first_pass_filter_result_buf; // For short filter in MD
-#endif
-} MotionCompensationPredictionContext;
-
 /** InterpolationFilter()
             is generally defined interpolation filter function.
             There is a whole group of these functions, each of which corresponds to a particular
@@ -54,35 +43,29 @@ typedef struct MotionCompensationPredictionContext {
             is_last indicates if there is any further filtering (interpolation filtering)
             afterwards.
      */
-extern void generate_padding(EbByte src_pic, uint32_t src_stride, uint32_t original_src_width,
-                             uint32_t original_src_height, uint32_t padding_width,
-                             uint32_t padding_height);
+extern void svt_aom_generate_padding(EbByte src_pic, uint32_t src_stride, uint32_t original_src_width,
+                                     uint32_t original_src_height, uint32_t padding_width, uint32_t padding_height);
 
-extern void generate_padding16_bit(EbByte src_pic, uint32_t src_stride, uint32_t original_src_width,
-                                   uint32_t original_src_height, uint32_t padding_width,
-                                   uint32_t padding_height);
+extern void svt_aom_generate_padding16_bit(uint16_t* src_pic, uint32_t src_stride, uint32_t original_src_width,
+                                           uint32_t original_src_height, uint32_t padding_width,
+                                           uint32_t padding_height);
 
 extern void pad_input_picture(EbByte src_pic, uint32_t src_stride, uint32_t original_src_width,
-                              uint32_t original_src_height, uint32_t pad_right,
-                              uint32_t pad_bottom);
+                              uint32_t original_src_height, uint32_t pad_right, uint32_t pad_bottom);
 
-extern void pad_input_picture_16bit(uint16_t* src_pic, uint32_t src_stride,
-                                    uint32_t original_src_width, uint32_t original_src_height,
-                                    uint32_t pad_right, uint32_t pad_bottom);
+extern void svt_aom_pad_input_picture_16bit(uint16_t* src_pic, uint32_t src_stride, uint32_t original_src_width,
+                                            uint32_t original_src_height, uint32_t pad_right, uint32_t pad_bottom);
 
-    void generate_padding_l(EbByte src_pic, uint32_t src_stride,
-        uint32_t row_height, uint32_t padding_width);
-    void generate_padding_r(EbByte src_pic, uint32_t src_stride,
-        uint32_t row_width, uint32_t row_height, uint32_t padding_width);
-    void generate_padding_t(EbByte src_pic, uint32_t src_stride,
-        uint32_t row_width, uint32_t padding_height);
-    void generate_padding_b(EbByte src_pic, uint32_t src_stride,
-        uint32_t row_width, uint32_t row_height, uint32_t padding_height);
+void generate_padding_l(EbByte src_pic, uint32_t src_stride, uint32_t row_height, uint32_t padding_width);
+void generate_padding_r(EbByte src_pic, uint32_t src_stride, uint32_t row_width, uint32_t row_height,
+                        uint32_t padding_width);
+void generate_padding_t(EbByte src_pic, uint32_t src_stride, uint32_t row_width, uint32_t padding_height);
+void generate_padding_b(EbByte src_pic, uint32_t src_stride, uint32_t row_width, uint32_t row_height,
+                        uint32_t padding_height);
 
-    void generate_padding_l_hbd(EbByte src_pic, uint32_t src_stride,
-        uint32_t row_height, uint32_t padding_width);
-    void generate_padding_r_hbd(EbByte src_pic, uint32_t src_stride,
-        uint32_t row_width, uint32_t row_height, uint32_t padding_width);
+void generate_padding_l_hbd(EbByte src_pic, uint32_t src_stride, uint32_t row_height, uint32_t padding_width);
+void generate_padding_r_hbd(EbByte src_pic, uint32_t src_stride, uint32_t row_width, uint32_t row_height,
+                            uint32_t padding_width);
 
 #ifdef __cplusplus
 }

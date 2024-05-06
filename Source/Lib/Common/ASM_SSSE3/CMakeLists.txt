@@ -20,20 +20,29 @@ include_directories(${PROJECT_SOURCE_DIR}/Source/API/
     ${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_AVX2/
     ${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_AVX512/)
 
-set(flags_to_test -mssse3)
+check_both_flags_add(-mssse3)
 
 if(CMAKE_C_COMPILER_ID STREQUAL "Intel" AND NOT WIN32)
-    list(APPEND flags_to_test -static-intel -w)
+    check_both_flags_add(-static-intel -w)
 endif()
 
-test_apply_compiler_flags(${flags_to_test})
-
-file(GLOB all_files
-    "*.h"
-    "*.c")
+set(all_files
+    EbAvcStyleMcp_SSSE3.h
+    EbHighbdIntraPrediction_Intrinsic_SSSE3.c
+    aom_subpixel_8t_intrin_ssse3.c
+    av1_inv_txfm_ssse3.c
+    av1_inv_txfm_ssse3.h
+    highbd_convolve_2d_ssse3.c
+    highbd_convolve_ssse3.c
+    highbd_wiener_convolve_ssse3.c
+    intrapred_ssse3.c
+    jnt_convolve_ssse3.c
+    reconinter_ssse3.c
+    )
 
 set(asm_files
-    aom_subpixel_bilinear_ssse3.asm)
+    aom_subpixel_bilinear_ssse3.asm
+    aom_subpixel_8t_ssse3.asm)
 
 add_library(COMMON_ASM_SSSE3 OBJECT ${all_files})
 

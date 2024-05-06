@@ -1,13 +1,14 @@
 /*
-* Copyright(c) 2019 Netflix, Inc.
-*
-* This source code is subject to the terms of the BSD 2 Clause License and
-* the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
-* was not distributed with this source code in the LICENSE file, you can
-* obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
-* Media Patent License 1.0 was not distributed with this source code in the
-* PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
-*/
+ * Copyright(c) 2019 Netflix, Inc.
+ *
+ * This source code is subject to the terms of the BSD 2 Clause License and
+ * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+ * was not distributed with this source code in the LICENSE file, you can
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
+ */
 
 /******************************************************************************
  * @file wiener_convolve_test.cc
@@ -40,8 +41,8 @@
 
 /**
  * @brief Unit test of wiener convolbe add source:
- * - eb_av1_wiener_convolve_add_src_avx2
- * - eb_av1_highbd_wiener_convolve_add_src_avx2
+ * - svt_av1_wiener_convolve_add_src_avx2
+ * - svt_av1_highbd_wiener_convolve_add_src_avx2
  *
  * Test strategy:
  * Verify this assembly code by comparing with reference c implementation.
@@ -80,40 +81,27 @@ typedef std::tuple<BlkSize, WienerConvolveFunc> WienerConvolveParam;
 typedef std::tuple<BlkSize, HbdWienerConvolveFunc, int32_t>
     HbdWienerConvolveParam;
 
-static const BlkSize test_block_size_table[] = {BlkSize(96, 96),
-                                                BlkSize(96, 97),
-                                                BlkSize(88, 88),
-                                                BlkSize(88, 85),
-                                                BlkSize(80, 80),
-                                                BlkSize(80, 79),
-                                                BlkSize(72, 72),
-                                                BlkSize(72, 71),
-                                                BlkSize(64, 64),
-                                                BlkSize(64, 63),
-                                                BlkSize(56, 56),
-                                                BlkSize(56, 57),
-                                                BlkSize(48, 48),
-                                                BlkSize(48, 49),
-                                                BlkSize(32, 32),
-                                                BlkSize(32, 33),
-                                                BlkSize(24, 24),
-                                                BlkSize(24, 23),
-                                                BlkSize(16, 16),
-                                                BlkSize(16, 15),
-                                                BlkSize(8, 9),
-                                                BlkSize(8, 8)};
+static const BlkSize test_block_size_table[] = {
+    BlkSize(96, 96), BlkSize(96, 97), BlkSize(88, 88), BlkSize(88, 85),
+    BlkSize(80, 80), BlkSize(80, 79), BlkSize(72, 72), BlkSize(72, 71),
+    BlkSize(64, 64), BlkSize(64, 63), BlkSize(56, 56), BlkSize(56, 57),
+    BlkSize(48, 48), BlkSize(48, 49), BlkSize(32, 32), BlkSize(32, 33),
+    BlkSize(24, 24), BlkSize(24, 23), BlkSize(16, 16), BlkSize(16, 15),
+    BlkSize(8, 9),   BlkSize(8, 8)};
 
 static const int test_tap_table[] = {7, 5, 3};
 
 static const WienerConvolveFunc wiener_convolve_func_table[] = {
-    eb_av1_wiener_convolve_add_src_avx2,
-#ifndef NON_AVX512_SUPPORT
-    eb_av1_wiener_convolve_add_src_avx512
+    svt_av1_wiener_convolve_add_src_sse2,
+    svt_av1_wiener_convolve_add_src_avx2,
+#if EN_AVX512_SUPPORT
+    svt_av1_wiener_convolve_add_src_avx512
 #endif
 };
 
 static const HbdWienerConvolveFunc hbd_wiener_convolve_func_table[] = {
-    eb_av1_highbd_wiener_convolve_add_src_avx2,
+    svt_av1_highbd_wiener_convolve_add_src_ssse3,
+    svt_av1_highbd_wiener_convolve_add_src_avx2,
 };
 
 template <typename Sample, typename FuncType, typename ParamType>
@@ -137,19 +125,19 @@ class AV1WienerConvolveTest : public ::testing::TestWithParam<ParamType> {
 
     void TearDown() override {
         if (input_) {
-            eb_aom_free(input_);
+            svt_aom_free(input_);
             input_ = nullptr;
         }
         if (output_) {
-            eb_aom_free(output_);
+            svt_aom_free(output_);
             output_ = nullptr;
         }
         if (output_tst_) {
-            eb_aom_free(output_tst_);
+            svt_aom_free(output_tst_);
             output_tst_ = nullptr;
         }
         if (output_ref_) {
-            eb_aom_free(output_ref_);
+            svt_aom_free(output_ref_);
             output_ref_ = nullptr;
         }
         aom_clear_system_state();
@@ -158,16 +146,16 @@ class AV1WienerConvolveTest : public ::testing::TestWithParam<ParamType> {
   protected:
     void malloc_data() {
         input_ = reinterpret_cast<Sample*>(
-            eb_aom_memalign(32, input_stride * h * sizeof(Sample)));
+            svt_aom_memalign(32, input_stride * h * sizeof(Sample)));
         ASSERT_NE(input_, nullptr) << "create input buffer failed!";
         output_ = reinterpret_cast<Sample*>(
-            eb_aom_memalign(32, output_stride * h * sizeof(Sample)));
+            svt_aom_memalign(32, output_stride * h * sizeof(Sample)));
         ASSERT_NE(output_, nullptr) << "create output buffer failed!";
         output_tst_ = reinterpret_cast<Sample*>(
-            eb_aom_memalign(32, output_stride * h * sizeof(Sample)));
+            svt_aom_memalign(32, output_stride * h * sizeof(Sample)));
         ASSERT_NE(output_tst_, nullptr) << "create test output buffer failed!";
         output_ref_ = reinterpret_cast<Sample*>(
-            eb_aom_memalign(32, output_stride * h * sizeof(Sample)));
+            svt_aom_memalign(32, output_stride * h * sizeof(Sample)));
         ASSERT_NE(output_ref_, nullptr) << "create ref output buffer failed!";
     }
 
@@ -334,7 +322,7 @@ class AV1WienerConvolveLbdTest
         // Choose random locations within the source block
         int offset_r = 3 + pseudo_uniform(h - out_h_ - 7);
         int offset_c = 3 + pseudo_uniform(input_stride - out_w_ - 7);
-        eb_av1_wiener_convolve_add_src_c(
+        svt_av1_wiener_convolve_add_src_c(
             input + offset_r * input_stride + offset_c,
             input_stride,
             output_ref_,
@@ -380,7 +368,7 @@ class AV1WienerConvolveLbdTest
         svt_av1_get_time(&start_time_seconds, &start_time_useconds);
 
         for (uint64_t i = 0; i < num_loop; i++) {
-            eb_av1_wiener_convolve_add_src_c(
+            svt_av1_wiener_convolve_add_src_c(
                 input + offset_r * input_stride + offset_c,
                 input_stride,
                 output_ref_,
@@ -444,7 +432,7 @@ class AV1WienerConvolveHbdTest
         // Choose random locations within the source block
         int offset_r = 3 + pseudo_uniform(h - out_h_ - 7);
         int offset_c = 3 + pseudo_uniform(input_stride - out_w_ - 7);
-        eb_av1_highbd_wiener_convolve_add_src_c(
+        svt_av1_highbd_wiener_convolve_add_src_c(
             input + offset_r * input_stride + offset_c,
             input_stride,
             out_ref,

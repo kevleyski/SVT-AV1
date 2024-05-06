@@ -41,18 +41,19 @@ typedef struct PacketizationReorderEntry {
     uint64_t   total_num_bits;
     FrameType  frame_type;
     Av1RpsNode av1_ref_signal;
-    EbBool     show_frame;
-    EbBool     has_show_existing;
+    Bool       show_frame;
+    Bool       has_show_existing;
     uint8_t    show_existing_frame;
     //small size bitstream for show existing frame
     Bitstream *bitstream_ptr;
     //valid when has_show_existing is true
-    int64_t    next_pts;
-    uint8_t    is_alt_ref;
+    int64_t                  next_pts;
+    uint8_t                  is_alt_ref;
+    struct SvtMetadataArray *metadata;
 } PacketizationReorderEntry;
 
-extern EbErrorType packetization_reorder_entry_ctor(PacketizationReorderEntry *entry_ptr,
-                                                    uint32_t                   picture_number);
+extern EbErrorType svt_aom_packetization_reorder_entry_ctor(PacketizationReorderEntry *entry_ptr,
+                                                            uint32_t                   picture_number);
 
 #ifdef __cplusplus
 }

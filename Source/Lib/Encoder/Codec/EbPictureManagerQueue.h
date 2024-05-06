@@ -29,13 +29,10 @@ struct ReferenceQueueEntry; // empty struct definition
 typedef struct InputQueueEntry {
     EbDctor          dctor;
     EbObjectWrapper *input_object_ptr;
-    uint32_t         dependent_count;
-    ReferenceList *  list0_ptr;
-    ReferenceList *  list1_ptr;
     uint32_t         use_count;
-    EbBool           memory_mgmt_loop_done;
-    EbBool           rate_control_loop_done;
-    EbBool           encoding_has_begun;
+    Bool             memory_mgmt_loop_done;
+    Bool             rate_control_loop_done;
+    Bool             encoding_has_begun;
 } InputQueueEntry;
 
 /************************************************
@@ -47,62 +44,26 @@ typedef struct ReferenceQueueEntry {
     uint64_t         picture_number;
     uint64_t         decode_order;
     EbObjectWrapper *reference_object_ptr;
-    uint32_t         dependent_count;
-    EbBool           release_enable;
-    EbBool           reference_available;
-    uint32_t         dep_list0_count;
-    uint32_t         dep_list1_count;
-    DependentList    list0;
-    DependentList    list1;
-    EbBool           is_used_as_reference_flag;
+    Bool             release_enable;
+    Bool             reference_available;
+    Bool             is_ref;
     uint64_t         rc_group_index;
-    EbBool           is_alt_ref;
-    EbBool           feedback_arrived;
-    EB_SLICE         slice_type;
+    Bool             is_alt_ref;
+    Bool             feedback_arrived;
+    SliceType        slice_type;
     uint8_t          temporal_layer_index;
-    EbBool           frame_context_updated;
+    Bool             frame_context_updated;
+    uint8_t          refresh_frame_mask;
+    // decode order of the last frame to use the current entry as a reference
+    uint64_t dec_order_of_last_ref;
+    // True if frame_end_cdf_update_mode is enabled for this frame
+    bool frame_end_cdf_update_required;
+    bool is_valid;
 } ReferenceQueueEntry;
 
-typedef struct PicQueueEntry {
-    EbDctor dctor;
+extern EbErrorType svt_aom_input_queue_entry_ctor(InputQueueEntry *entry_ptr);
 
-    uint64_t     pic_num;
-    int32_t      dep_cnt_diff; //increase(e.g 4L->5L) or decrease of dep cnt . not including the run-time decrease
-    uint8_t      is_done;
-} PicQueueEntry;
-/************************************************
-     * Rate Control Input Queue Entry
-     ************************************************/
-
-typedef struct RcInputQueueEntry {
-    uint64_t         picture_number;
-    EbObjectWrapper *input_object_ptr;
-    EbBool           is_passed;
-    EbBool           release_enabled;
-    uint64_t         group_id;
-    uint64_t         gop_first_poc;
-    uint32_t         gop_index;
-} RcInputQueueEntry;
-
-/************************************************
-     * Rate Control FeedBack  Queue Entry
-     ************************************************/
-typedef struct RcFeedbackQueueEntry {
-    uint64_t         picture_number;
-    EbObjectWrapper *feedback_object_ptr;
-
-    EbBool   is_available;
-    EbBool   is_updated;
-    EbBool   release_enabled;
-    uint64_t group_id;
-    uint64_t gop_first_poc;
-    uint32_t gop_index;
-} RcFeedbackQueueEntry;
-
-extern EbErrorType input_queue_entry_ctor(InputQueueEntry *entry_ptr);
-
-extern EbErrorType reference_queue_entry_ctor(ReferenceQueueEntry *entry_ptr);
-extern EbErrorType dep_cnt_queue_entry_ctor(PicQueueEntry *entry_ptr);
+extern EbErrorType svt_aom_reference_queue_entry_ctor(ReferenceQueueEntry *entry_ptr);
 
 #ifdef __cplusplus
 }

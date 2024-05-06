@@ -17,21 +17,48 @@ include("${SVT_AV1_E2E_ROOT}/test_data_util.cmake")
 include("${SVT_AV1_E2E_ROOT}/libaom_dependency.cmake")
 
 # Link Subdirectories
-link_directories(${PROJECT_SOURCE_DIR}/third_party/aom/lib)
+link_directories(${CMAKE_ARCHIVE_OUTPUT_DIRECTORY} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
 
-file(GLOB all_files
-    "*.h"
-    "*.cc"
-    "../../Source/App/EncApp/EbAppInputy4m.c"
-    "../../Source/App/EncApp/EbAppString.c")
+set(all_files
+    ../../Source/App/EncApp/EbAppInputy4m.c
+    ../../Source/App/EncApp/EbAppContext.c
+    ../../Source/App/EncApp/EbAppOutputivf.c
+    CompareTools.h
+    ConfigEncoder.cc
+    ConfigEncoder.h
+    DummyVideoSource.h
+    E2eTestVectors.h
+    FrameQueue.cc
+    FrameQueue.h
+    ParseUtil.cc
+    ParseUtil.h
+    PerformanceCollect.cc
+    PerformanceCollect.h
+    RefDecoder.cc
+    RefDecoder.h
+    SvtAv1E2EFramework.cc
+    SvtAv1E2EFramework.h
+    SvtAv1E2EParamsTest.cc
+    SvtAv1E2ETest.cc
+    VideoFrame.h
+    VideoSource.cc
+    VideoSource.h
+    Y4mVideoSource.cc
+    Y4mVideoSource.h
+    YuvVideoSource.cc
+    YuvVideoSource.h
+    )
 
 set(lib_list
     SvtAv1Enc
     SvtAv1Dec
     gtest_all
     #SDL2.lib
-    aom
-    $<TARGET_OBJECTS:safestringlib>)
+    aom)
+
+if(TARGET safestringlib)
+    list(APPEND lib_list $<TARGET_OBJECTS:safestringlib>)
+endif()
 
 if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_CRT_SECURE_NO_WARNINGS")
@@ -41,9 +68,6 @@ if(UNIX)
   # App Source Files
     add_executable(SvtAv1E2ETests
         ${all_files})
-
-    add_custom_command(TARGET SvtAv1E2ETests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/third_party/aom/lib/* ${CMAKE_OUTPUT_DIRECTORY}/)
     # Link the Encoder App
      target_link_libraries(SvtAv1E2ETests
         ${lib_list}
@@ -54,9 +78,6 @@ else()
         "${cxx_default}"
         "${lib_list}"
         ${all_files})
-    set_target_properties(SvtAv1E2ETests
-        PROPERTIES
-        COMPILE_DEFINITIONS "GTEST_LINKED_AS_SHARED_LIBRARY=1")
 endif()
 
 target_include_directories(SvtAv1E2ETests PRIVATE
@@ -66,8 +87,7 @@ target_include_directories(SvtAv1E2ETests PRIVATE
     ${PROJECT_SOURCE_DIR}/test
     ${PROJECT_SOURCE_DIR}/third_party/aom/inc
     ${PROJECT_SOURCE_DIR}/third_party/googletest/include
-    ${PROJECT_SOURCE_DIR}/third_party/googletest/src
-    ${PROJECT_SOURCE_DIR}/third_party/safestringlib)
+    ${PROJECT_SOURCE_DIR}/third_party/googletest/src)
 
 install(TARGETS SvtAv1E2ETests RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 

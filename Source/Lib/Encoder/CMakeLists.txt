@@ -1,10 +1,10 @@
 #
 # Copyright(c) 2019 Intel Corporation
 #
-# This source code is subject to the terms of the BSD 2 Clause License and
-# the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+# This source code is subject to the terms of the BSD 3 Clause Clear License and
+# the Alliance for Open Media Patent License 1.0. If the BSD 3 Clause Clear License
 # was not distributed with this source code in the LICENSE file, you can
-# obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
+# obtain it at https://www.aomedia.org/license/license. If the Alliance for Open
 # Media Patent License 1.0 was not distributed with this source code in the
 # PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
 #
@@ -12,17 +12,24 @@
 # Encoder Library directory CMakeLists.txt
 
 # Shared Encoder Version
-set(ENC_VERSION_MAJOR 0)
-set(ENC_VERSION_MINOR 8)
-set(ENC_VERSION_PATCH 5)
+set(ENC_VERSION_MAJOR 2)
+set(ENC_VERSION_MINOR 0)
+set(ENC_VERSION_PATCH 0)
 set(ENC_VERSION ${ENC_VERSION_MAJOR}.${ENC_VERSION_MINOR}.${ENC_VERSION_PATCH})
 
-if(UNIX)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Android")
+    find_library(M_LIB NAMES m)
+    if(M_LIB)
+        list(APPEND PLATFORM_LIBS m)
+    endif()
+    list(APPEND PLATFORM_LIBS Threads::Threads)
+elseif(UNIX)
     if(NOT APPLE)
-        find_library(M_LIB name m)
+        find_library(M_LIB NAMES m)
         if(M_LIB)
             list(APPEND PLATFORM_LIBS m)
         endif()
+        list(APPEND PLATFORM_LIBS Threads::Threads)
     endif()
     set(LIBS_PRIVATE "-lpthread -lm")
 endif()
@@ -49,7 +56,7 @@ link_directories(${PROJECT_SOURCE_DIR}/Source/Lib/Common/Codec/
 add_subdirectory(C_DEFAULT)
 add_subdirectory(Codec)
 add_subdirectory(Globals)
-if(NOT COMPILE_C_ONLY AND X86)
+if(NOT COMPILE_C_ONLY AND HAVE_X86_PLATFORM)
     # Include Encoder Subdirectories
     include_directories(${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_SSE2/
         ${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_SSSE3/
@@ -79,6 +86,13 @@ if(NOT COMPILE_C_ONLY AND X86)
     add_subdirectory(ASM_SSE4_1)
     add_subdirectory(ASM_AVX2)
     add_subdirectory(ASM_AVX512)
+elseif(NOT COMPILE_C_ONLY AND HAVE_ARM_PLATFORM)
+    include_directories(${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_NEON/
+        ${PROJECT_SOURCE_DIR}/Source/Lib/Encoder/ASM_NEON/)
+    link_directories(${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_NEON/
+        ${PROJECT_SOURCE_DIR}/Source/Lib/Common/C_DEFAULT/
+        ${PROJECT_SOURCE_DIR}/Source/Lib/Encoder/ASM_NEON/)
+    add_subdirectory(ASM_NEON)
 endif()
 
 # Required for cmake to be able to tell Xcode how to link all of the object files
@@ -86,9 +100,7 @@ if(CMAKE_GENERATOR STREQUAL "Xcode")
     file(WRITE ${PROJECT_BINARY_DIR}/dummy.c "")
 endif()
 
-file(GLOB all_files
-    "*.h"
-    "*.c")
+set(all_files "")
 
 get_target_property(common_lib_source common_lib INTERFACE_SOURCES)
 if(common_lib_source)
@@ -96,7 +108,7 @@ if(common_lib_source)
 endif()
 
 # Encoder Lib Source Files
-if(NOT COMPILE_C_ONLY AND X86)
+if(NOT COMPILE_C_ONLY AND HAVE_X86_PLATFORM)
     add_library(SvtAv1Enc
         ${all_files}
         $<TARGET_OBJECTS:COMMON_CODEC>
@@ -115,6 +127,17 @@ if(NOT COMPILE_C_ONLY AND X86)
         $<TARGET_OBJECTS:ENCODER_ASM_SSE4_1>
         $<TARGET_OBJECTS:ENCODER_ASM_AVX2>
         $<TARGET_OBJECTS:ENCODER_ASM_AVX512>)
+elseif(NOT COMPILE_C_ONLY AND HAVE_ARM_PLATFORM)
+    add_library(SvtAv1Enc
+        ${all_files}
+        $<TARGET_OBJECTS:COMMON_CODEC>
+        $<TARGET_OBJECTS:FASTFEAT>
+        $<TARGET_OBJECTS:COMMON_C_DEFAULT>
+        $<TARGET_OBJECTS:COMMON_ASM_NEON>
+        $<TARGET_OBJECTS:ENCODER_GLOBALS>
+        $<TARGET_OBJECTS:ENCODER_CODEC>
+        $<TARGET_OBJECTS:ENCODER_C_DEFAULT>
+        $<TARGET_OBJECTS:ENCODER_ASM_NEON>)
 else()
     add_library(SvtAv1Enc
         ${all_files}
@@ -128,8 +151,25 @@ endif()
 
 set_target_properties(SvtAv1Enc PROPERTIES VERSION ${ENC_VERSION})
 set_target_properties(SvtAv1Enc PROPERTIES SOVERSION ${ENC_VERSION_MAJOR})
-target_link_libraries(SvtAv1Enc ${PLATFORM_LIBS})
-install(TARGETS SvtAv1Enc DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+set_target_properties(SvtAv1Enc PROPERTIES C_VISIBILITY_PRESET hidden)
+target_link_libraries(SvtAv1Enc PUBLIC ${PLATFORM_LIBS})
+if(USE_EXTERNAL_CPUINFO)
+    target_link_libraries(SvtAv1Enc PRIVATE cpuinfo::cpuinfo)
+elseif(NOT COMPILE_C_ONLY AND HAVE_X86_PLATFORM)
+    target_link_libraries(SvtAv1Enc PRIVATE cpuinfo_public)
+endif()
+
+set(ENC_PKG_CONFIG_EXTRA_CFLAGS "")
+if (BUILD_SHARED_LIBS)
+    target_compile_definitions(SvtAv1Enc
+        PUBLIC EB_DLL
+        PRIVATE EB_BUILDING_SHARED_LIBS)
+    set(ENC_PKG_CONFIG_EXTRA_CFLAGS " -DEB_DLL")
+endif()
+install(TARGETS SvtAv1Enc
+        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
 configure_file(pkg-config.pc.in ${CMAKE_BINARY_DIR}/SvtAv1Enc.pc @ONLY)
 install(FILES ${CMAKE_BINARY_DIR}/SvtAv1Enc.pc DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")

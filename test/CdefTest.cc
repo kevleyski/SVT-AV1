@@ -1,22 +1,24 @@
 /*
  * Copyright(c) 2019 Netflix, Inc.
-*
-* This source code is subject to the terms of the BSD 2 Clause License and
-* the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
-* was not distributed with this source code in the LICENSE file, you can
-* obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
-* Media Patent License 1.0 was not distributed with this source code in the
-* PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
-*/
+ *
+ * This source code is subject to the terms of the BSD 2 Clause License and
+ * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+ * was not distributed with this source code in the LICENSE file, you can
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
+ */
 
 /******************************************************************************
  * @file CdefTest.cc
  *
  * @brief Unit test for cdef tools:
- * * eb_cdef_find_dir_avx2
- * * eb_cdef_filter_block_avx2
- * * compute_cdef_dist_avx2
- * * copy_rect8_8bit_to_16bit_avx2
+ * * svt_aom_cdef_find_dir_avx2
+ * * svt_aom_cdef_find_dir_dual_avx2
+ * * svt_cdef_filter_block_avx2
+ * * svt_aom_compute_cdef_dist_16bit_avx2
+ * * svt_aom_copy_rect8_8bit_to_16bit_avx2
  * * svt_search_one_dual_avx2
  *
  * @author Cidana-Wenyao
@@ -41,30 +43,34 @@
 #include "EbUnitTestUtility.h"
 #include "EbUtility.h"
 
-using ::testing::make_tuple;
 using svt_av1_test_tool::SVTRandom;
+using ::testing::make_tuple;
 namespace {
-
-typedef void (*eb_cdef_filter_block_8x8_16_func)(
+typedef void (*svt_cdef_filter_block_8xn_16_func)(
     const uint16_t *const in, const int32_t pri_strength,
     const int32_t sec_strength, const int32_t dir, int32_t pri_damping,
     int32_t sec_damping, const int32_t coeff_shift, uint16_t *const dst,
-    const int32_t dstride);
+    const int32_t dstride, uint8_t height, uint8_t subsampling_factor);
 
-static const eb_cdef_filter_block_8x8_16_func
-    eb_cdef_filter_block_8x8_16_func_table[] = {
-        eb_cdef_filter_block_8x8_16_avx2,
-#ifndef NON_AVX512_SUPPORT
-        eb_cdef_filter_block_8x8_16_avx512
+static const svt_cdef_filter_block_8xn_16_func
+    svt_cdef_filter_block_8xn_16_func_table[] = {
+#if defined(ARCH_X86_64)
+        svt_cdef_filter_block_8xn_16_avx2,
+#if EN_AVX512_SUPPORT
+        svt_cdef_filter_block_8xn_16_avx512
 #endif
+#endif
+
+#if defined(ARCH_AARCH64)
+            NULL,  // No C version, only applicable for avx2 and avx512
+#endif
+
 };
-
 using cdef_dir_param_t =
-    ::testing::tuple<CdefFilterBlockFunc, CdefFilterBlockFunc, BlockSize,
-                     int, int, eb_cdef_filter_block_8x8_16_func>;
-
+    ::testing::tuple<CdefFilterBlockFunc, CdefFilterBlockFunc, BlockSize, int,
+                     int, svt_cdef_filter_block_8xn_16_func>;
 /**
- * @brief Unit test for eb_cdef_filter_block_avx2
+ * @brief Unit test for svt_cdef_filter_block_avx2
  *
  * Test strategy:
  * Feed src data generated randomly and all possible input,
@@ -99,7 +105,9 @@ class CDEFBlockTest : public ::testing::TestWithParam<cdef_dir_param_t> {
         bsize_ = TEST_GET_PARAM(2);
         boundary_ = TEST_GET_PARAM(3);
         bd_ = TEST_GET_PARAM(4);
-        eb_cdef_filter_block_8x8_16 = TEST_GET_PARAM(5);
+        if (TEST_GET_PARAM(5) != NULL) {
+            svt_cdef_filter_block_8xn_16 = TEST_GET_PARAM(5);
+        }
 
         memset(dst_ref_, 0, sizeof(dst_ref_));
         memset(dst_tst_, 0, sizeof(dst_tst_));
@@ -138,7 +146,8 @@ class CDEFBlockTest : public ::testing::TestWithParam<cdef_dir_param_t> {
         }
     }
 
-    void run_test(int pri_damping, int sec_damping) {
+    void run_test(int pri_damping, int sec_damping,
+                  uint8_t subsampling_factor) {
         int pri_strength, sec_strength;
         int dir;
         unsigned int pos = 0;
@@ -167,7 +176,8 @@ class CDEFBlockTest : public ::testing::TestWithParam<cdef_dir_param_t> {
                               pri_damping,
                               sec_damping,
                               bsize_,
-                              bd_ - 8);
+                              bd_ - 8,
+                              subsampling_factor);
                     cdef_tst_(bd_ == 8 ? (uint8_t *)dst_tst_ : 0,
                               dst_tst_,
                               size_,
@@ -178,8 +188,8 @@ class CDEFBlockTest : public ::testing::TestWithParam<cdef_dir_param_t> {
                               pri_damping,
                               sec_damping,
                               bsize_,
-                              bd_ - 8);
-
+                              bd_ - 8,
+                              subsampling_factor);
                     for (pos = 0; pos < max_pos; pos++) {
                         ASSERT_EQ(dst_ref_[pos], dst_tst_[pos])
                             << "Error: CDEFBlockTest, SIMD and C mismatch."
@@ -218,7 +228,19 @@ class CDEFBlockTest : public ::testing::TestWithParam<cdef_dir_param_t> {
                          level += (2 + 6 * scale) << (bd_ - 8)) {
                         for (bits = 1; bits <= bd_; bits += 1 + 3 * scale) {
                             prepare_data(level, bits);
-                            run_test(pri_damping, sec_damping);
+                            // Allowable subsampling values are: 1, 2
+                            run_test(pri_damping, sec_damping, 1);
+
+                            /*
+                            The 2x subsampled avx2 kernel for 4x4 blocks is the
+                            same as the non-subsampled kernel because all values
+                            can be filtered at once, so subsampling would not
+                            give a speed gain. Therefore, the C/AVX2 kernels for
+                            4x4 2x subsampled blocks will produce different
+                            outputs (expected), and are not tested.
+                            */
+                            if (bsize_ > BLOCK_4X4)
+                                run_test(pri_damping, sec_damping, 2);
                         }
                     }
                 }
@@ -267,7 +289,9 @@ class CDEFBlockTest : public ::testing::TestWithParam<cdef_dir_param_t> {
                             pri_damping,
                             sec_damping,
                             bsize_,
-                            bd_ - 8);
+                            bd_ - 8,
+                            1);  // subsampling - test only non-subsampled for
+                                 // the speed
                     }
                 }
             }
@@ -300,7 +324,9 @@ class CDEFBlockTest : public ::testing::TestWithParam<cdef_dir_param_t> {
                             pri_damping,
                             sec_damping,
                             bsize_,
-                            bd_ - 8);
+                            bd_ - 8,
+                            1);  // subsampling - test only non-subsampled for
+                                 // the speed
                     }
                 }
             }
@@ -317,10 +343,10 @@ class CDEFBlockTest : public ::testing::TestWithParam<cdef_dir_param_t> {
                                                          finish_time_useconds);
 
         printf("Average Nanoseconds per Function Call\n");
-        printf("    eb_cdef_filter_block_c()   : %6.2f\n",
+        printf("    svt_cdef_filter_block_c()   : %6.2f\n",
                1000000 * time_c / num_loop);
         printf(
-            "    eb_cdef_filter_block_opt() : %6.2f   (Comparison: %5.2fx)\n",
+            "    svt_cdef_filter_block_opt() : %6.2f   (Comparison: %5.2fx)\n",
             1000000 * time_o / num_loop,
             time_c / time_o);
     }
@@ -347,28 +373,50 @@ TEST_P(CDEFBlockTest, DISABLED_SpeedTest) {
     speed_cdef();
 }
 
+#if defined(ARCH_X86_64)
+
 // VS compiling for 32 bit targets does not support vector types in
 // structs as arguments, which makes the v256 type of the intrinsics
 // hard to support, so optimizations for this target are disabled.
 #if defined(_WIN64) || !defined(_MSC_VER) || defined(__clang__)
-
 INSTANTIATE_TEST_CASE_P(
     Cdef, CDEFBlockTest,
     ::testing::Combine(
-        ::testing::Values(&eb_cdef_filter_block_avx2),
-        ::testing::Values(&eb_cdef_filter_block_c),
+        ::testing::Values(&svt_cdef_filter_block_avx2),
+        ::testing::Values(&svt_cdef_filter_block_c),
         ::testing::Values(BLOCK_4X4, BLOCK_4X8, BLOCK_8X4, BLOCK_8X8),
         ::testing::Range(0, 16), ::testing::Range(8, 13, 2),
-        ::testing::ValuesIn(eb_cdef_filter_block_8x8_16_func_table)));
+        ::testing::ValuesIn(svt_cdef_filter_block_8xn_16_func_table)));
+
+INSTANTIATE_TEST_CASE_P(
+    Cdef_sse4_1, CDEFBlockTest,
+    ::testing::Combine(
+        ::testing::Values(&svt_cdef_filter_block_avx2),
+        ::testing::Values(&svt_av1_cdef_filter_block_sse4_1),
+        ::testing::Values(BLOCK_4X4, BLOCK_4X8, BLOCK_8X4, BLOCK_8X8),
+        ::testing::Range(0, 16), ::testing::Range(8, 13, 2),
+        ::testing::ValuesIn(svt_cdef_filter_block_8xn_16_func_table)));
 
 #endif  // defined(_WIN64) || !defined(_MSC_VER)
+#endif  // defined(ARCH_X86_64)
 
-using FindDirFunc = int (*)(const uint16_t *img, int stride, int32_t *var,
-                            int coeff_shift);
+#if defined(ARCH_AARCH64)
+INSTANTIATE_TEST_CASE_P(
+    Cdef_neon, CDEFBlockTest,
+    ::testing::Combine(
+        ::testing::Values(&svt_cdef_filter_block_neon),
+        ::testing::Values(&svt_cdef_filter_block_c),
+        ::testing::Values(BLOCK_4X4, BLOCK_4X8, BLOCK_8X4, BLOCK_8X8),
+        ::testing::Range(0, 16), ::testing::Range(8, 13, 2),
+        ::testing::ValuesIn(svt_cdef_filter_block_8xn_16_func_table)));
+#endif  // defined(ARCH_AARCH64)
+
+using FindDirFunc = uint8_t (*)(const uint16_t *img, int stride, int32_t *var,
+                                int coeff_shift);
 using TestFindDirParam = ::testing::tuple<FindDirFunc, FindDirFunc>;
 
 /**
- * @brief Unit test for eb_cdef_find_dir_avx2
+ * @brief Unit test for svt_cdef_find_dir_avx2
  *
  * Test strategy:
  * Feed src data generated randomly, and check the best mse and
@@ -410,7 +458,7 @@ class CDEFFindDirTest : public ::testing::TestWithParam<TestFindDirParam> {
 
     void test_finddir() {
         int depth, bits, level, count;
-        int res_ref = 0, res_tst = 0;
+        uint8_t res_ref = 0, res_tst = 0;
         int32_t var_ref = 0, var_tst = 0;
 
         for (depth = 8; depth <= 12; depth += 2) {
@@ -448,20 +496,180 @@ TEST_P(CDEFFindDirTest, MatchTest) {
     test_finddir();
 }
 
+#if defined(ARCH_X86_64)
+
 // VS compiling for 32 bit targets does not support vector types in
 // structs as arguments, which makes the v256 type of the intrinsics
 // hard to support, so optimizations for this target are disabled.
 #if defined(_WIN64) || !defined(_MSC_VER) || defined(__clang__)
+INSTANTIATE_TEST_CASE_P(
+    Cdef, CDEFFindDirTest,
+    ::testing::Values(
+        make_tuple(&svt_aom_cdef_find_dir_sse4_1, &svt_aom_cdef_find_dir_c),
+        make_tuple(&svt_aom_cdef_find_dir_avx2, &svt_aom_cdef_find_dir_c)));
+#endif  // defined(_WIN64) || !defined(_MSC_VER)
 
-INSTANTIATE_TEST_CASE_P(Cdef, CDEFFindDirTest,
-                        ::testing::Values(make_tuple(&eb_cdef_find_dir_avx2,
-                                                     &eb_cdef_find_dir_c)));
+#endif  // defined(ARCH_X86_64)
+
+#if defined(ARCH_AARCH64)
+
+INSTANTIATE_TEST_CASE_P(
+    Cdef, CDEFFindDirTest,
+    ::testing::Values(make_tuple(&svt_aom_cdef_find_dir_neon,
+                                 &svt_aom_cdef_find_dir_c)));
+
+#endif
+
+using FindDirDualFunc = void (*)(const uint16_t *img1, const uint16_t *img2,
+                                 int stride, int32_t *var1, int32_t *var2,
+                                 int32_t coeff_shift, uint8_t *out1,
+                                 uint8_t *out2);
+using TestFindDirDualParam = ::testing::tuple<FindDirDualFunc, FindDirDualFunc>;
+/**
+ * @brief Unit test for svt_cdef_find_dir_dual_avx2
+ *
+ * Test strategy:
+ * Feed src data generated randomly, and check the best mse and
+ * the directional contrast from target function and reference
+ * function
+ *
+ * Expect result:
+ * The best mse and directional contrast from targeted function
+ * should be identical with the values from reference function.
+ *
+ * Test coverage:
+ * Test cases:
+ * bitdepth: 8, 10, 12
+ *
+ */
+class CDEFFindDirDualTest
+    : public ::testing::TestWithParam<TestFindDirDualParam> {
+  public:
+    CDEFFindDirDualTest() : rnd_(0, (1 << 16) - 1) {
+    }
+
+    virtual ~CDEFFindDirDualTest() {
+    }
+
+    virtual void SetUp() {
+        func_tst_ = TEST_GET_PARAM(0);
+        func_ref_ = TEST_GET_PARAM(1);
+    }
+
+    virtual void TearDown() {
+        aom_clear_system_state();
+    }
+
+    void prepare_data(int depth, int bits, int level) {
+        for (unsigned int i = 0; i < sizeof(src_) / sizeof(src_[0]); i++)
+            src_[i] = clamp((rnd_.random() & ((1 << bits) - 1)) + level,
+                            0,
+                            (1 << depth) - 1);
+        for (unsigned int i = 0; i < sizeof(src2_) / sizeof(src2_[0]); i++)
+            src2_[i] = clamp((rnd_.random() & ((1 << bits) - 1)) + level,
+                             0,
+                             (1 << depth) - 1);
+    }
+
+    void test_finddir() {
+        int depth, bits, level, count;
+        uint8_t res_ref_1 = 0, res_tst_1 = 0, res_ref_2 = 0, res_tst_2 = 0;
+        int32_t var_ref_1 = 0, var_tst_1 = 0, var_ref_2 = 0, var_tst_2 = 0;
+
+        for (depth = 8; depth <= 12; depth += 2) {
+            for (count = 0; count < 512; count++) {
+                const int shift = depth - 8;
+                for (level = 0; level < (1 << depth); level += 1 << shift) {
+                    for (bits = 1; bits <= depth; bits++) {
+                        prepare_data(depth, bits, level);
+
+                        func_ref_(src_,
+                                  src2_,
+                                  size_,
+                                  &var_ref_1,
+                                  &var_ref_2,
+                                  shift,
+                                  &res_ref_1,
+                                  &res_ref_2);
+                        func_tst_(src_,
+                                  src2_,
+                                  size_,
+                                  &var_tst_1,
+                                  &var_tst_2,
+                                  shift,
+                                  &res_tst_1,
+                                  &res_tst_2);
+                        ASSERT_EQ(res_tst_1, res_ref_1)
+                            << "Error: CDEFFindDirDualTest, SIMD and C "
+                               "mismatch."
+                            << "return " << res_tst_1 << " : " << res_ref_1
+                            << "depth: " << depth;
+                        ASSERT_EQ(res_tst_2, res_ref_2)
+                            << "Error: CDEFFindDirDualTest, SIMD and C "
+                               "mismatch."
+                            << "return " << res_tst_2 << " : " << res_ref_2
+                            << "depth: " << depth;
+                        ASSERT_EQ(var_tst_1, var_ref_1)
+                            << "Error: CDEFFindDirDualTest, SIMD and C "
+                               "mismatch."
+                            << "var: " << var_tst_1 << " : " << var_ref_1
+                            << "depth: " << depth;
+                        ASSERT_EQ(var_tst_2, var_ref_2)
+                            << "Error: CDEFFindDirDualTest, SIMD and C "
+                               "mismatch."
+                            << "var: " << var_tst_2 << " : " << var_ref_2
+                            << "depth: " << depth;
+                    }
+                }
+            }
+        }
+    }
+
+  protected:
+    FindDirDualFunc func_tst_;
+    FindDirDualFunc func_ref_;
+    SVTRandom rnd_;
+    static const int size_ = 8;
+    DECLARE_ALIGNED(16, uint16_t, src_[size_ * size_]);
+    DECLARE_ALIGNED(16, uint16_t, src2_[size_ * size_]);
+};
+
+TEST_P(CDEFFindDirDualTest, MatchTest) {
+    test_finddir();
+}
+
+#if defined(ARCH_X86_64)
+
+// VS compiling for 32 bit targets does not support vector types in
+// structs as arguments, which makes the v256 type of the intrinsics
+// hard to support, so optimizations for this target are disabled.
+#if defined(_WIN64) || !defined(_MSC_VER) || defined(__clang__)
+INSTANTIATE_TEST_CASE_P(
+    Cdef, CDEFFindDirDualTest,
+    ::testing::Values(make_tuple(&svt_aom_cdef_find_dir_dual_sse4_1,
+                                 &svt_aom_cdef_find_dir_dual_c),
+                      make_tuple(&svt_aom_cdef_find_dir_dual_avx2,
+                                 &svt_aom_cdef_find_dir_dual_c)));
 
 #endif  // defined(_WIN64) || !defined(_MSC_VER)
+
+#endif  // defined(ARCH_X86_64)
+
+#if defined(ARCH_AARCH64)
+
+INSTANTIATE_TEST_CASE_P(
+    Cdef, CDEFFindDirDualTest,
+    ::testing::Values(make_tuple(&svt_aom_cdef_find_dir_dual_neon,
+                                 &svt_aom_cdef_find_dir_dual_c)));
+
+#endif  // defined(ARCH_AARCH64)
+
 }  // namespace
 
+#if defined(ARCH_X86_64)
+
 /**
- * @brief Unit test for copy_rect8_8bit_to_16bit_avx2
+ * @brief Unit test for svt_aom_copy_rect8_8bit_to_16bit_avx2
  *
  * Test strategy:
  * Feed src data generated randomly, and check the dst data
@@ -492,6 +700,7 @@ TEST(CdefToolTest, CopyRectMatchTest) {
         for (int vsize = 8; vsize <= 64; vsize += 8) {
             memset(dst_data_tst_, 0, sizeof(dst_data_tst_));
             memset(dst_data_ref_, 0, sizeof(dst_data_ref_));
+
             uint8_t *src_ =
                 src_data_ + CDEF_VBORDER * CDEF_BSTRIDE + CDEF_HBORDER;
             uint16_t *dst_tst_ =
@@ -499,23 +708,39 @@ TEST(CdefToolTest, CopyRectMatchTest) {
             uint16_t *dst_ref_ =
                 dst_data_ref_ + CDEF_VBORDER * CDEF_BSTRIDE + CDEF_HBORDER;
 
-            eb_copy_rect8_8bit_to_16bit_c(
+            svt_aom_copy_rect8_8bit_to_16bit_c(
                 dst_ref_, CDEF_BSTRIDE, src_, CDEF_BSTRIDE, vsize, hsize);
-            eb_copy_rect8_8bit_to_16bit_avx2(
+
+            // Test the SSE4.1 copy function
+            memset(dst_data_tst_, 0, sizeof(dst_data_tst_));
+            svt_aom_copy_rect8_8bit_to_16bit_sse4_1(
                 dst_tst_, CDEF_BSTRIDE, src_, CDEF_BSTRIDE, vsize, hsize);
 
             for (int i = 0; i < vsize; ++i) {
                 for (int j = 0; j < hsize; ++j)
                     ASSERT_EQ(dst_ref_[i * CDEF_BSTRIDE + j],
-                              dst_ref_[i * CDEF_BSTRIDE + j])
+                              dst_tst_[i * CDEF_BSTRIDE + j])
+                        << "copy_rect8_8bit_to_16bit failed with pos(" << i
+                        << " " << j << ")";
+            }
+
+            // Test the AVX2 copy function
+            memset(dst_data_tst_, 0, sizeof(dst_data_tst_));
+            svt_aom_copy_rect8_8bit_to_16bit_avx2(
+                dst_tst_, CDEF_BSTRIDE, src_, CDEF_BSTRIDE, vsize, hsize);
+            for (int i = 0; i < vsize; ++i) {
+                for (int j = 0; j < hsize; ++j)
+                    ASSERT_EQ(dst_ref_[i * CDEF_BSTRIDE + j],
+                              dst_tst_[i * CDEF_BSTRIDE + j])
                         << "copy_rect8_8bit_to_16bit failed with pos(" << i
                         << " " << j << ")";
             }
         }
 }
+#endif  // defined(ARCH_X86_64)
 
 /**
- * @brief Unit test for compute_cdef_dist_avx2
+ * @brief Unit test for svt_aom_compute_cdef_dist_16bit_avx2
  *
  * Test strategy:
  * Feed cdef list, src buffer, dst buffer generated randomly to targeted
@@ -569,31 +794,83 @@ TEST(CdefToolTest, ComputeCdefDistMatchTest) {
                 BLOCK_4X4, BLOCK_4X8, BLOCK_8X4, BLOCK_8X8};
             for (int i = 0; i < 4; ++i) {
                 for (int plane = 0; plane < 3; ++plane) {
-                    const uint64_t c_mse = compute_cdef_dist_c(dst_data_,
-                                                               stride,
-                                                               src_data_,
-                                                               dlist,
-                                                               cdef_count,
-                                                               test_bs[i],
-                                                               coeff_shift,
-                                                               plane);
-                    const uint64_t avx_mse = compute_cdef_dist_avx2(dst_data_,
-                                                                    stride,
-                                                                    src_data_,
-                                                                    dlist,
-                                                                    cdef_count,
-                                                                    test_bs[i],
-                                                                    coeff_shift,
-                                                                    plane);
-                    ASSERT_EQ(c_mse, avx_mse)
-                        << "compute_cdef_dist_avx2 failed "
-                        << "bitdepth: " << bd << " plane: " << plane
-                        << " BlockSize " << test_bs[i] << " loop: " << k;
+                    // Allowable subsampling values are: 1, 2
+                    for (uint8_t subsampling = 1; subsampling <= 2;
+                         subsampling <<= 1) {
+                        const uint64_t c_mse =
+                            svt_aom_compute_cdef_dist_c(dst_data_,
+                                                        stride,
+                                                        src_data_,
+                                                        dlist,
+                                                        cdef_count,
+                                                        test_bs[i],
+                                                        coeff_shift,
+                                                        plane,
+                                                        subsampling);
+
+#if defined(ARCH_AARCH64)
+
+                        // NEON
+                        const uint64_t neon_mse =
+                            svt_aom_compute_cdef_dist_16bit_neon(dst_data_,
+                                                                 stride,
+                                                                 src_data_,
+                                                                 dlist,
+                                                                 cdef_count,
+                                                                 test_bs[i],
+                                                                 coeff_shift,
+                                                                 plane,
+                                                                 subsampling);
+                        ASSERT_EQ(c_mse, neon_mse)
+                            << "svt_aom_compute_cdef_dist_16bit_sse4_1 failed "
+                            << "bitdepth: " << bd << " plane: " << plane
+                            << " BlockSize " << test_bs[i] << " loop: " << k;
+
+#endif  // if defined(ARCH_AARCH64)
+
+#if defined(ARCH_X86_64)
+
+                        // SSE4.1
+                        const uint64_t sse_mse =
+                            svt_aom_compute_cdef_dist_16bit_sse4_1(dst_data_,
+                                                                   stride,
+                                                                   src_data_,
+                                                                   dlist,
+                                                                   cdef_count,
+                                                                   test_bs[i],
+                                                                   coeff_shift,
+                                                                   plane,
+                                                                   subsampling);
+                        ASSERT_EQ(c_mse, sse_mse)
+                            << "svt_aom_compute_cdef_dist_16bit_sse4_1 failed "
+                            << "bitdepth: " << bd << " plane: " << plane
+                            << " BlockSize " << test_bs[i] << " loop: " << k;
+
+                        // AVX2
+                        const uint64_t avx_mse =
+                            svt_aom_compute_cdef_dist_16bit_avx2(dst_data_,
+                                                                 stride,
+                                                                 src_data_,
+                                                                 dlist,
+                                                                 cdef_count,
+                                                                 test_bs[i],
+                                                                 coeff_shift,
+                                                                 plane,
+                                                                 subsampling);
+                        ASSERT_EQ(c_mse, avx_mse)
+                            << "svt_aom_compute_cdef_dist_16bit_avx2 failed "
+                            << "bitdepth: " << bd << " plane: " << plane
+                            << " BlockSize " << test_bs[i] << " loop: " << k;
+
+#endif  // defined(ARCH_X86_64)
+                    }
                 }
             }
         }
     }
 }
+
+#if defined(ARCH_X86_64)
 
 TEST(CdefToolTest, ComputeCdefDist8bitMatchTest) {
     const int stride = 1 << MAX_SB_SIZE_LOG2;
@@ -632,32 +909,57 @@ TEST(CdefToolTest, ComputeCdefDist8bitMatchTest) {
                 BLOCK_4X4, BLOCK_4X8, BLOCK_8X4, BLOCK_8X8};
             for (int i = 0; i < 4; ++i) {
                 for (int plane = 0; plane < 3; ++plane) {
-                    const uint64_t c_mse = compute_cdef_dist_8bit_c(dst_data_,
-                                                                    stride,
-                                                                    src_data_,
-                                                                    dlist,
-                                                                    cdef_count,
-                                                                    test_bs[i],
-                                                                    coeff_shift,
-                                                                    plane);
-                    const uint64_t avx_mse =
-                        compute_cdef_dist_8bit_avx2(dst_data_,
-                                                    stride,
-                                                    src_data_,
-                                                    dlist,
-                                                    cdef_count,
-                                                    test_bs[i],
-                                                    coeff_shift,
-                                                    plane);
-                    ASSERT_EQ(c_mse, avx_mse)
-                        << "compute_cdef_dist_8bit_avx2 failed "
-                        << "bitdepth: " << bd << " plane: " << plane
-                        << " BlockSize " << test_bs[i] << " loop: " << k;
+                    // Allowable subsampling values are: 1, 2
+                    for (uint8_t subsampling = 1; subsampling <= 2;
+                         subsampling <<= 1) {
+                        const uint64_t c_mse =
+                            svt_aom_compute_cdef_dist_8bit_c(dst_data_,
+                                                             stride,
+                                                             src_data_,
+                                                             dlist,
+                                                             cdef_count,
+                                                             test_bs[i],
+                                                             coeff_shift,
+                                                             plane,
+                                                             subsampling);
+                        // SSE4.1
+                        const uint64_t sse_mse =
+                            svt_aom_compute_cdef_dist_8bit_sse4_1(dst_data_,
+                                                                  stride,
+                                                                  src_data_,
+                                                                  dlist,
+                                                                  cdef_count,
+                                                                  test_bs[i],
+                                                                  coeff_shift,
+                                                                  plane,
+                                                                  subsampling);
+                        ASSERT_EQ(c_mse, sse_mse)
+                            << "svt_aom_compute_cdef_dist_8bit_sse4_1 failed "
+                            << "bitdepth: " << bd << " plane: " << plane
+                            << " BlockSize " << test_bs[i] << " loop: " << k;
+
+                        // AVX2
+                        const uint64_t avx_mse =
+                            svt_aom_compute_cdef_dist_8bit_avx2(dst_data_,
+                                                                stride,
+                                                                src_data_,
+                                                                dlist,
+                                                                cdef_count,
+                                                                test_bs[i],
+                                                                coeff_shift,
+                                                                plane,
+                                                                subsampling);
+                        ASSERT_EQ(c_mse, avx_mse)
+                            << "svt_aom_compute_cdef_dist_8bit_avx2 failed "
+                            << "bitdepth: " << bd << " plane: " << plane
+                            << " BlockSize " << test_bs[i] << " loop: " << k;
+                    }
                 }
             }
         }
     }
 }
+#endif  // defined(ARCH_X86_64)
 
 /**
  * @brief Unit test for svt_search_one_dual_avx2
@@ -677,15 +979,17 @@ TEST(CdefToolTest, ComputeCdefDist8bitMatchTest) {
  * end_gi: TOTAL_STRENGTHS
  *
  */
-
 typedef uint64_t (*svt_search_one_dual_func)(int *lev0, int *lev1,
-    int nb_strengths, uint64_t (**mse)[64],
-    int sb_count, int start_gi, int end_gi);
+                                             int nb_strengths,
+                                             uint64_t **mse[2], int sb_count,
+                                             int start_gi, int end_gi);
 
 static const svt_search_one_dual_func search_one_dual_func_table[] = {
+#if defined(ARCH_X86_64)
     svt_search_one_dual_avx2,
-#ifndef NON_AVX512_SUPPORT
+#if EN_AVX512_SUPPORT
     svt_search_one_dual_avx512
+#endif
 #endif
 };
 
@@ -696,9 +1000,13 @@ TEST(CdefToolTest, SearchOneDualMatchTest) {
     const int end_gi = TOTAL_STRENGTHS;
     int lvl_luma_ref[CDEF_MAX_STRENGTHS], lvl_chroma_ref[CDEF_MAX_STRENGTHS];
     int lvl_luma_tst[CDEF_MAX_STRENGTHS], lvl_chroma_tst[CDEF_MAX_STRENGTHS];
-    uint64_t(*mse[2])[TOTAL_STRENGTHS];
-    mse[0] = (uint64_t(*)[64])eb_aom_memalign(32, sizeof(**mse) * sb_count);
-    mse[1] = (uint64_t(*)[64])eb_aom_memalign(32, sizeof(**mse) * sb_count);
+    uint64_t **mse[2];
+    mse[0] = (uint64_t **)svt_aom_memalign(32, sizeof(*mse[0]) * sb_count);
+    mse[1] = (uint64_t **)svt_aom_memalign(32, sizeof(*mse[1]) * sb_count);
+    for (int i = 0; i < sb_count; i++) {
+        mse[0][i] = (uint64_t *)svt_aom_memalign(32, sizeof(**mse[0]) * 64);
+        mse[1][i] = (uint64_t *)svt_aom_memalign(32, sizeof(**mse[1]) * 64);
+    }
 
     SVTRandom rnd_(10, false);
     for (int k = 0; k < 100; ++k) {
@@ -724,8 +1032,8 @@ TEST(CdefToolTest, SearchOneDualMatchTest) {
                                                               sb_count,
                                                               start_gi,
                                                               end_gi);
-                for (int l = 0; l < (int) (sizeof(search_one_dual_func_table) /
-                                        sizeof(*search_one_dual_func_table));
+                for (int l = 0; l < (int)(sizeof(search_one_dual_func_table) /
+                                          sizeof(*search_one_dual_func_table));
                      ++l) {
                     uint64_t best_mse_tst =
                         search_one_dual_func_table[l](lvl_luma_tst,
@@ -753,9 +1061,12 @@ TEST(CdefToolTest, SearchOneDualMatchTest) {
             }
         }
     }
-
-    eb_aom_free(mse[0]);
-    eb_aom_free(mse[1]);
+    for (int i = 0; i < sb_count; i++) {
+        svt_aom_free(mse[0][i]);
+        svt_aom_free(mse[1][i]);
+    }
+    svt_aom_free(mse[0]);
+    svt_aom_free(mse[1]);
 }
 
 TEST(CdefToolTest, DISABLED_SearchOneDualSpeedTest) {
@@ -766,10 +1077,13 @@ TEST(CdefToolTest, DISABLED_SearchOneDualSpeedTest) {
     const int nb_strengths = 8;
     int lvl_luma_ref[CDEF_MAX_STRENGTHS], lvl_chroma_ref[CDEF_MAX_STRENGTHS];
     int lvl_luma_tst[CDEF_MAX_STRENGTHS], lvl_chroma_tst[CDEF_MAX_STRENGTHS];
-    uint64_t(*mse[2])[TOTAL_STRENGTHS];
-    mse[0] = (uint64_t(*)[64])eb_aom_memalign(32, sizeof(**mse) * sb_count);
-    mse[1] = (uint64_t(*)[64])eb_aom_memalign(32, sizeof(**mse) * sb_count);
-
+    uint64_t **mse[2];
+    mse[0] = (uint64_t **)svt_aom_memalign(32, sizeof(*mse[0]) * sb_count);
+    mse[1] = (uint64_t **)svt_aom_memalign(32, sizeof(*mse[1]) * sb_count);
+    for (int i = 0; i < sb_count; i++) {
+        mse[0][i] = (uint64_t *)svt_aom_memalign(32, sizeof(**mse[0]) * 64);
+        mse[1][i] = (uint64_t *)svt_aom_memalign(32, sizeof(**mse[1]) * 64);
+    }
     SVTRandom rnd_(10, false);
 
     // generate mse randomly
@@ -784,8 +1098,8 @@ TEST(CdefToolTest, DISABLED_SearchOneDualSpeedTest) {
     memset(lvl_luma_tst, 0, sizeof(lvl_luma_tst));
     memset(lvl_chroma_tst, 0, sizeof(lvl_chroma_tst));
 
-    for (int i = 0; i < (int) (sizeof(search_one_dual_func_table) /
-                            sizeof(*search_one_dual_func_table));
+    for (int i = 0; i < (int)(sizeof(search_one_dual_func_table) /
+                              sizeof(*search_one_dual_func_table));
          ++i) {
         for (int j = 0; j < nb_strengths; ++j) {
             uint64_t best_mse_ref, best_mse_tst;
@@ -856,6 +1170,10 @@ TEST(CdefToolTest, DISABLED_SearchOneDualSpeedTest) {
         }
     }
 
-    eb_aom_free(mse[0]);
-    eb_aom_free(mse[1]);
+    for (int i = 0; i < sb_count; i++) {
+        svt_aom_free(mse[0][i]);
+        svt_aom_free(mse[1][i]);
+    }
+    svt_aom_free(mse[0]);
+    svt_aom_free(mse[1]);
 }

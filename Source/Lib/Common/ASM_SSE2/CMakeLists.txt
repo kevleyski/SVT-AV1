@@ -17,17 +17,34 @@ include_directories(${PROJECT_SOURCE_DIR}/Source/API/
     ${PROJECT_SOURCE_DIR}/Source/Lib/Common/C_DEFAULT/
     ${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_SSE2/)
 
-set(flags_to_test -msse2)
+check_both_flags_add(-msse2)
 
 if(CMAKE_C_COMPILER_ID STREQUAL "Intel" AND NOT WIN32)
-    list(APPEND flags_to_test -static-intel -w)
+    check_both_flags_add(-static-intel -w)
 endif()
 
-test_apply_compiler_flags(${flags_to_test})
-
-file(GLOB all_files
-    "*.h"
-    "*.c")
+set(all_files
+    EbAvcStyleMcp_Intrinsic_SSE2.c
+    EbDeblockingFilter_Intrinsic_SSE2.c
+    EbDeblockingFilter_SSE2.h
+    EbHighbdIntraPrediction_SSE2.h
+    EbIntraPrediction_AV1_Intrinsic_SSE2.c
+    EbMcp_SSE2.h
+    EbPackUnPack_Intrinsic_SSE2.c
+    EbPictureOperators_Intrinsic_SSE2.c
+    EbPictureOperators_SSE2.h
+    av1_txfm_sse2.h
+    convolve_2d_sse2.c
+    convolve_sse2.c
+    highbd_intrapred_sse2.c
+    highbd_subtract_sse2.c
+    jnt_convolve_2d_sse2.c
+    jnt_convolve_sse2.c
+    lpf_common_sse2.h
+    synonyms.h
+    transpose_sse2.h
+    wiener_convolve_sse2.c
+    )
 
 set(asm_files
     intrapred_sse2.asm

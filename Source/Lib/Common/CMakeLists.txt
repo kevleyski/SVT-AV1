@@ -11,29 +11,19 @@
 
 # Libraries Directory CMakeLists.txt
 
-macro(test_apply_compiler_flags)
-    foreach(cflag ${ARGV})
-        string(REGEX REPLACE "[^A-Za-z0-9]" "_" cflag_var "${cflag}")
-        set(test_c_flag "C_FLAG${cflag_var}")
-        check_c_compiler_flag(${cflag} "${test_c_flag}")
-        if(${test_c_flag})
-            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${cflag}")
-        endif()
-    endforeach()
-    if(CMAKE_BUILD_TYPE MATCHES "[Dd][Ee][Bb][Uu][Gg]")
-        message(STATUS "${CMAKE_CURRENT_SOURCE_DIR}: ${CMAKE_C_FLAGS}")
-    endif()
-endmacro()
-
 add_library(common_lib INTERFACE)
 
 add_subdirectory(Codec)
 add_subdirectory(C_DEFAULT)
 
-if(NOT COMPILE_C_ONLY AND X86)
+if(NOT COMPILE_C_ONLY AND HAVE_X86_PLATFORM)
     add_subdirectory(ASM_SSE2)
     add_subdirectory(ASM_SSSE3)
     add_subdirectory(ASM_SSE4_1)
     add_subdirectory(ASM_AVX2)
     add_subdirectory(ASM_AVX512)
+endif()
+
+if(NOT COMPILE_C_ONLY AND HAVE_ARM_PLATFORM)
+    add_subdirectory(ASM_NEON)
 endif()

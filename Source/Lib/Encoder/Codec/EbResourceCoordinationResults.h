@@ -18,12 +18,19 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct InputCommand {
+    EbDctor          dctor;
+    EbObjectWrapper *eb_input_wrapper_ptr;
+    EbObjectWrapper *y8b_wrapper;
+} InputCommand;
+
 /**************************************
-     * Process Results
-     **************************************/
+ * Process Results
+ **************************************/
 typedef struct ResourceCoordinationResults {
     EbDctor          dctor;
-    EbObjectWrapper *pcs_wrapper_ptr;
+    EbObjectWrapper *pcs_wrapper;
 } ResourceCoordinationResults;
 
 typedef struct ResourceCoordinationResultInitData {
@@ -33,8 +40,7 @@ typedef struct ResourceCoordinationResultInitData {
 /**************************************
      * Extern Function Declarations
      **************************************/
-extern EbErrorType resource_coordination_result_creator(EbPtr *object_dbl_ptr,
-                                                        EbPtr  object_init_data_ptr);
+extern EbErrorType svt_aom_resource_coordination_result_creator(EbPtr *object_dbl_ptr, EbPtr object_init_data_ptr);
 
 #ifdef __cplusplus
 }

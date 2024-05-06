@@ -1,13 +1,14 @@
 /*
-* Copyright(c) 2019 Netflix, Inc.
-*
-* This source code is subject to the terms of the BSD 2 Clause License and
-* the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
-* was not distributed with this source code in the LICENSE file, you can
-* obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
-* Media Patent License 1.0 was not distributed with this source code in the
-* PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
-*/
+ * Copyright(c) 2019 Netflix, Inc.
+ *
+ * This source code is subject to the terms of the BSD 2 Clause License and
+ * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+ * was not distributed with this source code in the LICENSE file, you can
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
+ */
 
 /******************************************************************************
  * @file GlobalMotionUtilTest.cc
@@ -348,22 +349,6 @@ class RansacIntTest : public RansacTest<int, RansacFunc> {
     }
 };
 
-class RansacDoubleTest : public RansacTest<double, RansacFuncDouble> {
-  protected:
-    void prepare_input(double *input, int npoints) {
-        for (int i = 0; i < npoints; i++) {
-            input[4 * i] = data_.at(i).x;
-            input[4 * i + 1] = data_.at(i).y;
-            input[4 * i + 2] = ref_.at(i).x;
-            input[4 * i + 3] = ref_.at(i).y;
-        }
-    }
-
-    RansacFuncDouble get_ransac_func(TransformationType type) {
-        return svt_av1_get_ransac_double_prec_type(type);
-    }
-};
-
 static const TransformationType transform_table[] = {
     TRANSLATION, ROTZOOM, AFFINE};
 
@@ -372,13 +357,6 @@ TEST_P(RansacIntTest, CheckOutput) {
 };
 
 INSTANTIATE_TEST_CASE_P(GlobalMotion, RansacIntTest,
-                        ::testing::ValuesIn(transform_table));
-
-TEST_P(RansacDoubleTest, CheckOutput) {
-    run_test(1000);
-};
-
-INSTANTIATE_TEST_CASE_P(GlobalMotion, RansacDoubleTest,
                         ::testing::ValuesIn(transform_table));
 
 }  // namespace

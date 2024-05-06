@@ -19,7 +19,7 @@ include_directories(../../../API
         ${PROJECT_SOURCE_DIR}/third_party/fastfeat/
         )
 
-if(NOT COMPILE_C_ONLY AND X86)
+if(NOT COMPILE_C_ONLY AND HAVE_X86_PLATFORM)
 # Include Encoder Subdirectories
 include_directories(
         ${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_SSE2/
@@ -28,11 +28,24 @@ include_directories(
         ${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_AVX2/
         ${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_AVX512/
         )
+elseif(NOT COMPILE_C_ONLY AND HAVE_ARM_PLATFORM)
+include_directories(
+        ${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_NEON/)
 endif()
 
-file(GLOB all_files
-    "*.h"
-    "*.c")
+set(all_files
+        EbEncHandle.c
+        EbEncHandle.h
+        EbEncSettings.c
+        EbEncSettings.h
+        EbMetadataHandle.c
+        EbMetadataHandle.h
+        )
 
 add_library(ENCODER_GLOBALS OBJECT ${all_files})
+if (BUILD_SHARED_LIBS)
+        target_compile_definitions(ENCODER_GLOBALS
+                PUBLIC EB_DLL
+                PRIVATE EB_BUILDING_SHARED_LIBS)
+endif()
 add_dependencies(ENCODER_GLOBALS EbVersionHeaderGen)

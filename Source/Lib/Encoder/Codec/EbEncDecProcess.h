@@ -13,14 +13,12 @@
 #define EbEncDecProcess_h
 
 #include "EbDefinitions.h"
-#include "EbSyntaxElements.h"
 #include "EbModeDecisionProcess.h"
 #include "EbSystemResourceManager.h"
 #include "EbPictureBufferDesc.h"
 #include "EbModeDecision.h"
 #include "EbEncInterPrediction.h"
 #include "EbEntropyCoding.h"
-#include "EbTransQuantBuffers.h"
 #include "EbReferenceObject.h"
 #include "EbNeighborArrays.h"
 #include "EbCodingUnit.h"
@@ -36,17 +34,12 @@ extern "C" {
      * Enc Dec Context
      **************************************/
 typedef struct EncDecContext {
-    EbFifo *                 mode_decision_input_fifo_ptr;
-    EbFifo *                 enc_dec_output_fifo_ptr;
-    EbFifo *                 enc_dec_feedback_fifo_ptr;
-    EbFifo *                 picture_demux_output_fifo_ptr; // to picture-manager
-    MdRateEstimationContext *md_rate_estimation_ptr;
-    EbBool                   is_md_rate_estimation_ptr_owner;
-    ModeDecisionContext *    md_context;
-    const BlockGeom *        blk_geom;
-    // MCP Context
-    MotionCompensationPredictionContext *mcp_context;
-
+    EbFifo              *mode_decision_input_fifo_ptr;
+    EbFifo              *enc_dec_output_fifo_ptr;
+    EbFifo              *enc_dec_feedback_fifo_ptr;
+    EbFifo              *picture_demux_output_fifo_ptr; // to picture-manager
+    ModeDecisionContext *md_ctx;
+    const BlockGeom     *blk_geom;
     // Coding Unit Workspace---------------------------
     EbPictureBufferDesc *residual_buffer;
     EbPictureBufferDesc *transform_buffer;
@@ -55,29 +48,28 @@ typedef struct EncDecContext {
     // temporary buffers for decision making of LF (LPF_PICK_FROM_FULL_IMAGE).
     // Since recon switches between reconPtr and referencePtr, the temporary buffers sizes used the referencePtr's which has padding,...
     EbPictureBufferDesc *inverse_quant_buffer;
-    uint32_t pic_fast_lambda[2];
-    uint32_t pic_full_lambda[2];
+    uint32_t             pic_fast_lambda[2];
+    uint32_t             pic_full_lambda[2];
 
     //  Context Variables---------------------------------
     BlkStruct *blk_ptr;
     //const CodedBlockStats                *cu_stats;
-    uint16_t      blk_origin_x; // within the picture
-    uint16_t      blk_origin_y; // within the picture
-    uint8_t       sb_sz;
+    uint16_t      blk_org_x; // within the picture
+    uint16_t      blk_org_y; // within the picture
     uint32_t      sb_index;
     MvUnit        mv_unit;
     uint8_t       txb_itr;
-    EbBool        is_16bit; //enable 10 bit encode in CL
+    Bool          is_16bit; //enable 10 bit encode in CL
     uint32_t      bit_depth;
     EbColorFormat color_format;
     uint64_t      tot_intra_coded_area;
-    uint8_t       intra_coded_area_sb
-        [MAX_NUMBER_OF_TREEBLOCKS_PER_PICTURE]; //percentage of intra coded area 0-100%
-    uint64_t three_quad_energy;
+    uint64_t      tot_skip_coded_area;
+    uint64_t      tot_hp_coded_area;
+    uint64_t      three_quad_energy;
 
     // Needed for DC prediction
-    uint8_t upsample_left;
-    uint8_t upsample_above;
+    uint8_t  upsample_left;
+    uint8_t  upsample_above;
     uint16_t coded_area_sb;
     uint16_t coded_area_sb_uv;
 
@@ -91,13 +83,12 @@ typedef struct EncDecContext {
 } EncDecContext;
 
 /**************************************
-     * Extern Function Declarations
-     **************************************/
-extern EbErrorType enc_dec_context_ctor(EbThreadContext *  thread_context_ptr,
-                                        const EbEncHandle *enc_handle_ptr, int index,
-                                        int tasks_index, int demux_index);
+ * Extern Function Declarations
+ **************************************/
+extern EbErrorType svt_aom_enc_dec_context_ctor(EbThreadContext *thread_ctx, const EbEncHandle *enc_handle_ptr,
+                                                int index, int tasks_index);
 
-extern void *mode_decision_kernel(void *input_ptr);
+extern void *svt_aom_mode_decision_kernel(void *input_ptr);
 
 #ifdef __cplusplus
 }

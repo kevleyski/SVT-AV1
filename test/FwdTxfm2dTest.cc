@@ -1,13 +1,14 @@
 /*
-* Copyright(c) 2019 Netflix, Inc.
-*
-* This source code is subject to the terms of the BSD 2 Clause License and
-* the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
-* was not distributed with this source code in the LICENSE file, you can
-* obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
-* Media Patent License 1.0 was not distributed with this source code in the
-* PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
-*/
+ * Copyright(c) 2019 Netflix, Inc.
+ *
+ * This source code is subject to the terms of the BSD 2 Clause License and
+ * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+ * was not distributed with this source code in the LICENSE file, you can
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
+ */
 
 /******************************************************************************
  * @file FwdTxfm2dTest.c
@@ -74,25 +75,25 @@ class AV1FwdTxfm2dTest : public ::testing::TestWithParam<FwdTxfm2dParam> {
         : max_error_(TEST_GET_PARAM(2)),
           txfm_size_(TEST_GET_PARAM(0)),
           txfm_type_(TEST_GET_PARAM(1)) {
-        av1_transform_config(txfm_type_, txfm_size_, &cfg_);
+        svt_aom_transform_config(txfm_type_, txfm_size_, &cfg_);
     }
 
     void SetUp() override {
         input_test_ = reinterpret_cast<int16_t *>(
-            eb_aom_memalign(32, MAX_TX_SQUARE * sizeof(int16_t)));
+            svt_aom_memalign(32, MAX_TX_SQUARE * sizeof(int16_t)));
         output_test_ = reinterpret_cast<int32_t *>(
-            eb_aom_memalign(32, MAX_TX_SQUARE * sizeof(int32_t)));
+            svt_aom_memalign(32, MAX_TX_SQUARE * sizeof(int32_t)));
         input_ref_ = reinterpret_cast<double *>(
-            eb_aom_memalign(32, MAX_TX_SQUARE * sizeof(double)));
+            svt_aom_memalign(32, MAX_TX_SQUARE * sizeof(double)));
         output_ref_ = reinterpret_cast<double *>(
-            eb_aom_memalign(32, MAX_TX_SQUARE * sizeof(double)));
+            svt_aom_memalign(32, MAX_TX_SQUARE * sizeof(double)));
     }
 
     void TearDown() override {
-        eb_aom_free(input_test_);
-        eb_aom_free(output_test_);
-        eb_aom_free(input_ref_);
-        eb_aom_free(output_ref_);
+        svt_aom_free(input_test_);
+        svt_aom_free(output_test_);
+        svt_aom_free(input_ref_);
+        svt_aom_free(output_ref_);
         aom_clear_system_state();
     }
 

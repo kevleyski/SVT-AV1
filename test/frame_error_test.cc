@@ -4,9 +4,10 @@
  * This source code is subject to the terms of the BSD 2 Clause License and
  * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
  * was not distributed with this source code in the LICENSE file, you can
- * obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
- * Media Patent License 1.0 was not distributed with this source code in the
- * PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
  */
 
 #include <math.h>
@@ -63,10 +64,10 @@ void AV1FrameErrorTest::RandomValues(frame_error_func test_impl, int width,
                                      int height) {
     const int stride = (((width * 3) / 2) + 15) & ~15;
     const int max_blk_size = stride * height;
-    uint8_t *const dst =
-        static_cast<uint8_t *>(eb_aom_memalign(16, max_blk_size * sizeof(*dst)));
-    uint8_t *const ref =
-        static_cast<uint8_t *>(eb_aom_memalign(16, max_blk_size * sizeof(*ref)));
+    uint8_t *const dst = static_cast<uint8_t *>(
+        svt_aom_memalign(16, max_blk_size * sizeof(*dst)));
+    uint8_t *const ref = static_cast<uint8_t *>(
+        svt_aom_memalign(16, max_blk_size * sizeof(*ref)));
     ASSERT_TRUE(dst != NULL);
     ASSERT_TRUE(ref != NULL);
     for (int i = 0; i < max_blk_size; ++i) {
@@ -74,22 +75,22 @@ void AV1FrameErrorTest::RandomValues(frame_error_func test_impl, int width,
         ref[i] = rnd_->Rand8();
     }
     const int64_t ref_error =
-        eb_av1_calc_frame_error_c(ref, stride, dst, width, height, stride);
+        svt_av1_calc_frame_error_c(ref, stride, dst, width, height, stride);
     const int64_t test_error =
         test_impl(ref, stride, dst, width, height, stride);
     ASSERT_EQ(test_error, ref_error) << width << "x" << height;
-    eb_aom_free(dst);
-    eb_aom_free(ref);
+    svt_aom_free(dst);
+    svt_aom_free(ref);
 }
 
 void AV1FrameErrorTest::ExtremeValues(frame_error_func test_impl, int width,
                                       int height) {
     const int stride = (((width * 3) / 2) + 15) & ~15;
     const int max_blk_size = stride * height;
-    uint8_t *const dst =
-        static_cast<uint8_t *>(eb_aom_memalign(16, max_blk_size * sizeof(*dst)));
-    uint8_t *const ref =
-        static_cast<uint8_t *>(eb_aom_memalign(16, max_blk_size * sizeof(*ref)));
+    uint8_t *const dst = static_cast<uint8_t *>(
+        svt_aom_memalign(16, max_blk_size * sizeof(*dst)));
+    uint8_t *const ref = static_cast<uint8_t *>(
+        svt_aom_memalign(16, max_blk_size * sizeof(*ref)));
     ASSERT_TRUE(dst != NULL);
     ASSERT_TRUE(ref != NULL);
     for (int r = 0; r < 2; r++) {
@@ -101,30 +102,30 @@ void AV1FrameErrorTest::ExtremeValues(frame_error_func test_impl, int width,
             memset(ref, 0, max_blk_size);
         }
         const int64_t ref_error =
-            eb_av1_calc_frame_error_c(ref, stride, dst, width, height, stride);
+            svt_av1_calc_frame_error_c(ref, stride, dst, width, height, stride);
         const int64_t test_error =
             test_impl(ref, stride, dst, width, height, stride);
         ASSERT_EQ(test_error, ref_error) << width << "x" << height;
     }
-    eb_aom_free(dst);
-    eb_aom_free(ref);
+    svt_aom_free(dst);
+    svt_aom_free(ref);
 }
 
 void AV1FrameErrorTest::RunSpeedTest(frame_error_func test_impl, int width,
                                      int height) {
     const int stride = (((width * 3) / 2) + 15) & ~15;
     const int max_blk_size = stride * height;
-    uint8_t *const dst =
-        static_cast<uint8_t *>(eb_aom_memalign(16, max_blk_size * sizeof(*dst)));
-    uint8_t *const ref =
-        static_cast<uint8_t *>(eb_aom_memalign(16, max_blk_size * sizeof(*ref)));
+    uint8_t *const dst = static_cast<uint8_t *>(
+        svt_aom_memalign(16, max_blk_size * sizeof(*dst)));
+    uint8_t *const ref = static_cast<uint8_t *>(
+        svt_aom_memalign(16, max_blk_size * sizeof(*ref)));
     ASSERT_TRUE(dst != NULL);
     ASSERT_TRUE(ref != NULL);
     for (int i = 0; i < max_blk_size; ++i) {
         dst[i] = ref[i] = rnd_->Rand8();
     }
     const int num_loops = 10000000 / (width + height);
-    frame_error_func funcs[2] = {eb_av1_calc_frame_error_c, test_impl};
+    frame_error_func funcs[2] = {svt_av1_calc_frame_error_c, test_impl};
     double elapsed_time[2] = {0};
     for (int i = 0; i < 2; ++i) {
         double time;
@@ -143,8 +144,8 @@ void AV1FrameErrorTest::RunSpeedTest(frame_error_func test_impl, int width,
                                                        finish_time_useconds);
         elapsed_time[i] = 1000.0 * time / num_loops;
     }
-    eb_aom_free(dst);
-    eb_aom_free(ref);
+    svt_aom_free(dst);
+    svt_aom_free(ref);
     printf("av1_calc_frame_error %3dx%-3d: %7.2f/%7.2fns",
            width,
            height,
@@ -164,7 +165,7 @@ TEST_P(AV1FrameErrorTest, DISABLED_Speed) {
 
 INSTANTIATE_TEST_CASE_P(
     AVX2, AV1FrameErrorTest,
-    ::testing::Combine(::testing::Values(&eb_av1_calc_frame_error_avx2),
+    ::testing::Combine(::testing::Values(&svt_av1_calc_frame_error_avx2),
                        ::testing::ValuesIn(kBlockWidth),
                        ::testing::ValuesIn(kBlockHeight)));
 

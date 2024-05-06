@@ -1,13 +1,14 @@
 /*
-* Copyright(c) 2019 Netflix, Inc.
-*
-* This source code is subject to the terms of the BSD 2 Clause License and
-* the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
-* was not distributed with this source code in the LICENSE file, you can
-* obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
-* Media Patent License 1.0 was not distributed with this source code in the
-* PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
-*/
+ * Copyright(c) 2019 Netflix, Inc.
+ *
+ * This source code is subject to the terms of the BSD 2 Clause License and
+ * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+ * was not distributed with this source code in the LICENSE file, you can
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
+ */
 
 /******************************************************************************
  * @file intrapred_test.cc
@@ -116,20 +117,20 @@ class AV1IntraPredTest : public ::testing::TestWithParam<TupleType> {
         stride_ = 64 * 3;
         mask_ = (1 << bd_) - 1;
         above_row_data_ = reinterpret_cast<Sample *>(
-            eb_aom_memalign(32, 3 * 64 * sizeof(Sample)));
+            svt_aom_memalign(32, 3 * 64 * sizeof(Sample)));
         above_row_ = above_row_data_ + 16;
         left_col_ = reinterpret_cast<Sample *>(
-            eb_aom_memalign(32, 2 * 64 * sizeof(Sample)));
+            svt_aom_memalign(32, 2 * 64 * sizeof(Sample)));
         dst_tst_ = reinterpret_cast<Sample *>(
-            eb_aom_memalign(32, 3 * 64 * 64 * sizeof(Sample)));
+            svt_aom_memalign(32, 3 * 64 * 64 * sizeof(Sample)));
         dst_ref_ = reinterpret_cast<Sample *>(
-            eb_aom_memalign(32, 3 * 64 * 64 * sizeof(Sample)));
+            svt_aom_memalign(32, 3 * 64 * 64 * sizeof(Sample)));
     }
     void TearDown() override {
-        eb_aom_free(above_row_data_);
-        eb_aom_free(left_col_);
-        eb_aom_free(dst_tst_);
-        eb_aom_free(dst_ref_);
+        svt_aom_free(above_row_data_);
+        svt_aom_free(left_col_);
+        svt_aom_free(dst_tst_);
+        svt_aom_free(dst_ref_);
     }
 
     virtual void Predict() = 0;
@@ -155,16 +156,21 @@ class HighbdIntraPredTest
     : public AV1IntraPredTest<INTRAPRED_HBD, uint16_t, HBD_PARAMS> {
   protected:
     void Predict() {
+        svt_aom_setup_common_rtcd_internal(svt_aom_get_cpu_flags_to_use());
         const int bit_depth = bd_;
         ref_func_(dst_ref_, stride_, above_row_, left_col_, bit_depth);
         tst_func_(dst_tst_, stride_, above_row_, left_col_, bit_depth);
     }
 };
 
+/** setup_test_env is implemented in test/TestEnv.c */
+extern "C" void setup_test_env();
+
 class LowbdIntraPredTest
     : public AV1IntraPredTest<INTRAPRED_LBD, uint8_t, LBD_PARAMS> {
   protected:
     void Predict() {
+        setup_test_env();
         ref_func_(dst_ref_, stride_, above_row_, left_col_);
         tst_func_(dst_tst_, stride_, above_row_, left_col_);
     }
@@ -180,11 +186,11 @@ TEST_P(LowbdIntraPredTest, match_test) {
 
 // -----------------------------------------------------------------------------
 // High Bit Depth Tests
-#define hbd_entry(type, width, height, opt)                                  \
-    make_tuple(&eb_aom_highbd_##type##_predictor_##width##x##height##_##opt, \
-               &eb_aom_highbd_##type##_predictor_##width##x##height##_c,     \
-               width,                                                        \
-               height,                                                       \
+#define hbd_entry(type, width, height, opt)                                   \
+    make_tuple(&svt_aom_highbd_##type##_predictor_##width##x##height##_##opt, \
+               &svt_aom_highbd_##type##_predictor_##width##x##height##_c,     \
+               width,                                                         \
+               height,                                                        \
                10)
 
 const HBD_PARAMS HighbdIntraPredTestVectorAsm[] = {
@@ -282,7 +288,7 @@ const HBD_PARAMS HighbdIntraPredTestVectorAsm[] = {
     hbd_entry(paeth, 8, 4, avx2),      hbd_entry(paeth, 8, 8, avx2),
     hbd_entry(paeth, 8, 16, avx2),     hbd_entry(paeth, 8, 32, avx2),
     hbd_entry(paeth, 4, 4, avx2),      hbd_entry(paeth, 4, 8, avx2),
-    hbd_entry(paeth, 4, 16, avx2),     hbd_entry(paeth, 2, 2, avx2),
+    hbd_entry(paeth, 4, 16, avx2),
 };
 
 INSTANTIATE_TEST_CASE_P(intrapred, HighbdIntraPredTest,
@@ -290,11 +296,11 @@ INSTANTIATE_TEST_CASE_P(intrapred, HighbdIntraPredTest,
 
 // ---------------------------------------------------------------------------
 // Low Bit Depth Tests
-#define lbd_entry(type, width, height, opt)                           \
-    LBD_PARAMS(&eb_aom_##type##_predictor_##width##x##height##_##opt, \
-               &eb_aom_##type##_predictor_##width##x##height##_c,     \
-               width,                                                 \
-               height,                                                \
+#define lbd_entry(type, width, height, opt)                            \
+    LBD_PARAMS(&svt_aom_##type##_predictor_##width##x##height##_##opt, \
+               &svt_aom_##type##_predictor_##width##x##height##_c,     \
+               width,                                                  \
+               height,                                                 \
                8)
 
 const LBD_PARAMS LowbdIntraPredTestVectorAsm[] = {

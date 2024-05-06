@@ -19,10 +19,11 @@
  * Enums
  **************************************/
 typedef enum EbPicType {
-    EB_PIC_INVALID   = 0,
-    EB_PIC_INPUT     = 1,
-    EB_PIC_REFERENCE = 2,
-    EB_PIC_FEEDBACK  = 3
+    EB_PIC_INVALID        = 0,
+    EB_PIC_INPUT          = 1,
+    EB_PIC_REFERENCE      = 2,
+    EB_PIC_FEEDBACK       = 3,
+    EB_PIC_SUPERRES_INPUT = 4
 } EbPicType;
 
 /**************************************
@@ -33,13 +34,13 @@ typedef struct PictureDemuxResults {
     EbPicType picture_type;
 
     // Only valid for input pictures
-    EbObjectWrapper *pcs_wrapper_ptr;
+    EbObjectWrapper *pcs_wrapper;
 
     // Only valid for reference pictures
-    EbObjectWrapper *reference_picture_wrapper_ptr;
-    EbObjectWrapper *scs_wrapper_ptr;
-    uint64_t         picture_number;
-    uint64_t         decode_order;
+    EbObjectWrapper           *ref_pic_wrapper;
+    struct SequenceControlSet *scs;
+    uint64_t                   picture_number;
+    uint64_t                   decode_order;
 } PictureDemuxResults;
 
 typedef struct PictureResultInitData {
@@ -49,6 +50,20 @@ typedef struct PictureResultInitData {
 /**************************************
  * Extern Function Declarations
  **************************************/
-extern EbErrorType picture_results_creator(EbPtr *object_dbl_ptr, EbPtr object_init_data_ptr);
+extern EbErrorType svt_aom_picture_results_creator(EbPtr *object_dbl_ptr, EbPtr object_init_data_ptr);
 
+typedef struct PictureManagerResults {
+    EbDctor          dctor;
+    EbObjectWrapper *pcs_wrapper;
+    uint32_t         segment_index;
+    uint8_t          task_type;
+    uint8_t          tpl_ref_list0_count;
+    uint8_t          tpl_ref_list1_count;
+    uint8_t          temporal_layer_index;
+    Bool             is_ref;
+} PictureManagerResults;
+
+typedef struct PictureManagerResultInitData {
+    int32_t junk;
+} PictureManagerResultInitData;
 #endif //EbPictureResults_h

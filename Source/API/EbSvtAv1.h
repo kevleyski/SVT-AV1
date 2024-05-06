@@ -20,18 +20,41 @@ extern "C" {
 #include "EbSvtAv1Formats.h"
 #include "EbDebugMacros.h"
 
-// API Version
-#define SVT_VERSION_MAJOR 0
-#define SVT_VERSION_MINOR 8
-#define SVT_VERSION_PATCHLEVEL 5
+struct SvtMetadataArray;
 
-#ifdef _WIN32
-#define EB_API __declspec(dllexport)
+// API Version
+#define SVT_AV1_VERSION_MAJOR 2
+#define SVT_AV1_VERSION_MINOR 0
+#define SVT_AV1_VERSION_PATCHLEVEL 0
+
+#define SVT_AV1_CHECK_VERSION(major, minor, patch)                                                               \
+    (SVT_AV1_VERSION_MAJOR > (major) || (SVT_AV1_VERSION_MAJOR == (major) && SVT_AV1_VERSION_MINOR > (minor)) || \
+     (SVT_AV1_VERSION_MAJOR == (major) && SVT_AV1_VERSION_MINOR == (minor) && SVT_AV1_VERSION_PATCHLEVEL >= (patch)))
+
+#if defined(_WIN32)
+#define EB_HELPER_EXPORT __declspec(dllexport)
+#define EB_HELPER_IMPORT __declspec(dllimport)
+#elif defined(__GNUC__) && __GNUC__ >= 4
+#define EB_HELPER_EXPORT __attribute__((visibility("default")))
+#define EB_HELPER_IMPORT
 #else
-#define EB_API __attribute__ ((visibility ("default")))
+#define EB_HELPER_EXPORT
+#define EB_HELPER_IMPORT
 #endif
 
+#if defined(EB_DLL)
+#if defined(EB_BUILDING_SHARED_LIBS)
+#define EB_API EB_HELPER_EXPORT
+#else
+#define EB_API EB_HELPER_IMPORT
+#endif // if defined(EB_BUILDING_SHARED_LIBS)
+#else
+#define EB_API
+#endif //if defined(EB_DLL)
+
 #define EB_MAX_NUM_OPERATING_POINTS 32
+
+#define MAX_TEMPORAL_LAYERS 6
 
 #define EB_MAX_TEMPORAL_LAYERS MAX_TEMPORAL_LAYERS
 
@@ -52,14 +75,13 @@ typedef enum EbAv1PictureType {
     EB_AV1_INVALID_PICTURE       = 0xFF
 } EbAv1PictureType;
 
-/** The EbBool type is intended to be used to represent a true or a false
+/** The Bool type is intended to be used to represent a true or a false
 value when passing parameters to and from the eBrisk API.  The
-EbBool is a 32 bit quantity and is aligned on a 32 bit word boundary.
+Bool is an 8 bit quantity.
 */
-
-#define EbBool uint8_t
-#define EB_FALSE 0
-#define EB_TRUE 1
+typedef uint8_t Bool;
+#define FALSE 0
+#define TRUE 1
 
 typedef struct EbBufferHeaderType {
     // EbBufferHeaderType size
@@ -80,23 +102,25 @@ typedef struct EbBufferHeaderType {
     int64_t  pts;
 
     // pic info
-    uint32_t qp;
-    uint32_t pic_type;
-    uint32_t luma_sse;
-    uint32_t cr_sse;
-    uint32_t cb_sse;
+    uint32_t         qp;
+    EbAv1PictureType pic_type;
+    uint64_t         luma_sse;
+    uint64_t         cr_sse;
+    uint64_t         cb_sse;
     // pic flags
     uint32_t flags;
 
     double luma_ssim;
     double cr_ssim;
     double cb_ssim;
+
+    struct SvtMetadataArray *metadata;
 } EbBufferHeaderType;
 
 typedef struct EbComponentType {
     uint32_t size;
-    void *   p_component_private;
-    void *   p_application_private;
+    void    *p_component_private;
+    void    *p_application_private;
 } EbComponentType;
 
 typedef enum EbErrorType {
@@ -121,17 +145,7 @@ typedef enum EbErrorType {
 } EbErrorType;
 
 /* AV1 bistream profile (seq_profile syntax element) */
-typedef enum EbAv1SeqProfile {
-    MAIN_PROFILE         = 0,
-    HIGH_PROFILE         = 1,
-    PROFESSIONAL_PROFILE = 2
-} EbAv1SeqProfile;
-
-typedef enum AomBitDepth {
-    AOM_BITS_8  = 8, /**<  8 bits */
-    AOM_BITS_10 = 10, /**< 10 bits */
-    AOM_BITS_12 = 12, /**< 12 bits */
-} AomBitDepth;
+typedef enum EbAv1SeqProfile { MAIN_PROFILE = 0, HIGH_PROFILE = 1, PROFESSIONAL_PROFILE = 2 } EbAv1SeqProfile;
 
 // For 8-bit and 10-bit packed inputs and outputs, the luma, cb, and cr fields should be used
 //   for the three input picture planes.  However, for 10-bit unpacked planes the
@@ -145,9 +159,12 @@ typedef struct EbSvtIOFormat //former EbSvtEncInput
     uint8_t *cr;
 
     // Hosts LSB 2 bits of 10bit input/output when the compressed 10bit format is used
-    uint8_t *luma_ext;
-    uint8_t *cb_ext;
-    uint8_t *cr_ext;
+#if !SVT_AV1_CHECK_VERSION(1, 5, 0)
+    /* DEPRECATED: to be removed in 1.5.0. */
+    void *luma_ext;
+    void *cb_ext;
+    void *cr_ext;
+#endif
 
     uint32_t y_stride;
     uint32_t cr_stride;
@@ -156,17 +173,12 @@ typedef struct EbSvtIOFormat //former EbSvtEncInput
     uint32_t width;
     uint32_t height;
 
-    uint32_t origin_x;
-    uint32_t origin_y;
+    uint32_t org_x;
+    uint32_t org_y;
 
     EbColorFormat color_fmt;
     EbBitDepth    bit_depth;
 } EbSvtIOFormat;
-
-typedef struct BitstreamLevel {
-    uint8_t major;
-    uint8_t minor;
-} BitstreamLevel;
 
 typedef struct EbOperatingParametersInfo {
     /*!<Specifies the time interval between the arrival of the first bit in the
@@ -206,11 +218,11 @@ typedef struct EbAV1OperatingPoint {
 
 typedef struct EbColorConfig {
     /*!< bit depth */
-    uint32_t bit_depth;
+    EbBitDepth bit_depth;
 
     /*!< 1: Indicates that the video does not contain U and V color planes.
      *   0: Indicates that the video contains Y, U, and V color planes. */
-    EbBool mono_chrome;
+    Bool mono_chrome;
 
     /*!< Specify the chroma subsampling format */
     uint8_t subsampling_x;
@@ -222,7 +234,7 @@ typedef struct EbColorConfig {
             matrix_coefficients are present. color_description_present_flag
      *   0: Specifies that color_primaries, transfer_characteristics and
             matrix_coefficients are not present */
-    EbBool color_description_present_flag;
+    Bool color_description_present_flag;
 
     /*!< An integer that is defined by the "Color primaries" section of
      * ISO/IEC 23091-4/ITU-T H.273 */
@@ -246,13 +258,13 @@ typedef struct EbColorConfig {
     /*!< 1: Indicates that the U and V planes may have separate delta quantizer
      *   0: Indicates that the U and V planes will share the same delta
             quantizer value */
-    EbBool separate_uv_delta_q;
+    Bool separate_uv_delta_q;
 
 } EbColorConfig;
 
 typedef struct EbTimingInfo {
     /*!< Timing info present flag */
-    EbBool timing_info_present;
+    Bool timing_info_present;
 
     /*!< Number of time units of a clock operating at the frequency time_scale
      * Hz that corresponds to one increment of a clock tick counter*/
@@ -273,28 +285,163 @@ typedef struct EbTimingInfo {
 
 } EbTimingInfo;
 
+// structure to be allocated at the sample application and passed to the library
+// on a per picture basis through the p_app_private field in the EbBufferHeaderType structure
+// this structure and the data inside would be casted, validated, then copied at the
+// svt_av1_enc_send_picture API call
+typedef enum {
+    PRIVATE_DATA, // data to be passed through and written to the bitstream
+    //FILM_GRAIN_PARAM,        // passing film grain parameters per picture
+    REF_FRAME_SCALING_EVENT, // reference frame scaling data per picture
+    ROI_MAP_EVENT, // ROI map data per picture
+    RES_CHANGE_EVENT, // resolution change data per picture (KF only)
+    RATE_CHANGE_EVENT, // Rate change data per picture (KF only)
+    PRIVATE_DATA_TYPES // end of private data types
+} PrivDataType;
+typedef struct EbPrivDataNode {
+    PrivDataType           node_type;
+    void                  *data; // pointer to data structure e.g. EbRefFrameScale or AomFilmGrain
+    uint32_t               size; // size of data being sent for the library to know how much to copy
+    struct EbPrivDataNode *next; // pointer to the next node, NULL if done.
+} EbPrivDataNode;
+typedef struct EbRefFrameScale {
+    uint8_t  scale_mode; // scaling mode, support for RESIZE_NONE, RESIZE_FIXED and RESIZE_RANDOM
+    uint32_t scale_denom; // scaling denominator for non-key frame, from 8~16
+    uint32_t scale_kf_denom; // scaling denominator for key frame, from 8~16
+} EbRefFrameScale;
+typedef struct SvtAv1RoiMapEvt {
+    uint64_t                start_picture_number;
+    uint8_t                *b64_seg_map;
+    int16_t                 seg_qp[8]; // 8: MAX_SEGMENTS
+    int8_t                  max_seg_id;
+    struct SvtAv1RoiMapEvt *next;
+} SvtAv1RoiMapEvt;
+typedef struct SvtAv1RoiMap {
+    uint32_t         evt_num;
+    SvtAv1RoiMapEvt *evt_list;
+    SvtAv1RoiMapEvt *cur_evt;
+    int16_t         *qp_map;
+    char            *buf;
+} SvtAv1RoiMap;
+
+typedef struct SvtAv1InputPicDef {
+    uint16_t input_luma_width; // input luma width aligned to 8, this is used during encoding
+    uint16_t input_luma_height; // input luma height aligned to 8, this is used during encoding
+    uint16_t input_pad_bottom;
+    uint16_t input_pad_right;
+} SvtAv1InputPicDef;
+typedef struct SvtAv1RateInfo {
+    // Sequence QP used in CRF/CQP algorithm. Over writes the sequence QP.
+    uint32_t seq_qp;
+    uint32_t target_bit_rate;
+} SvtAv1RateInfo;
+
+/*!\brief Structure containing film grain synthesis parameters for a frame
+     *
+     * This structure contains input parameters for film grain synthesis
+     */
+typedef struct {
+    // Whether the decoder should apply film grain
+    int32_t apply_grain;
+
+    // Whether the decoder should update the film grain parameters from previous frame
+    int32_t update_parameters;
+
+    // 8 bit values indicating grain scaling points for the luma plane
+    int32_t scaling_points_y[14][2];
+    int32_t num_y_points; // value: 0..14
+
+    // 8 bit values indicating grain scaling points for the blue chroma plane
+    int32_t scaling_points_cb[10][2];
+    int32_t num_cb_points; // value: 0..10
+
+    // 8 bit values indicating grain scaling points for the red chroma plane
+    int32_t scaling_points_cr[10][2];
+    int32_t num_cr_points; // value: 0..10
+
+    // A value by which to shift scaling points, typically 8
+    int32_t scaling_shift; // values : 8..11
+
+    // Number of auto-regressive coefficients
+    int32_t ar_coeff_lag; // values:  0..3
+
+    // 8 bit values representing auto-regressive coefficients for each plane
+    int32_t ar_coeffs_y[24];
+    int32_t ar_coeffs_cb[25];
+    int32_t ar_coeffs_cr[25];
+
+    // Shift value: AR coeffs range
+    // 6: [-2, 2)
+    // 7: [-1, 1)
+    // 8: [-0.5, 0.5)
+    // 9: [-0.25, 0.25)
+    int32_t ar_coeff_shift; // values : 6..9
+
+    // A multiplier for the cb component used in derivation of the
+    // input index to the cb component scaling function.
+    int32_t cb_mult; // 8 bits
+    // A multiplier for the average luma component used in derivation of the input index to the cb
+    // component scaling function.
+    int32_t cb_luma_mult; // 8 bits
+    // An offset used in derivation of the input index to the cb component scaling function.
+    int32_t cb_offset; // 9 bits
+
+    // A multiplier for the cr component used in derivation of the
+    // input index to the cr component scaling function.
+    int32_t cr_mult; // 8 bits
+    // A multiplier for the average luma component used in derivation of the input index to the cr
+    // component scaling function.
+    int32_t cr_luma_mult; // 8 bits
+    // An offset used in derivation of the input index to the cr component scaling function.
+    int32_t cr_offset; // 9 bits
+
+    // Whether overlap between film grain blocks should be applied
+    int32_t overlap_flag;
+
+    // Whether to clip to studio range after film grain is generated
+    int32_t clip_to_restricted_range;
+
+    int32_t bit_depth; // video bit depth
+
+    // Whether to apply film grain to chroma planes based on the luma plane
+    int32_t chroma_scaling_from_luma;
+
+    // Specifies how much the random numbers should be scaled down during grain synthesis
+    int32_t grain_scale_shift;
+
+    // A random seed for the decoder to use for grain generation
+    uint16_t random_seed;
+
+    // Whether the encoder should ignore the ref frame map when coding film grain
+    int32_t ignore_ref;
+} AomFilmGrain;
+
 /**
 CPU FLAGS
 */
-typedef uint64_t CPU_FLAGS;
-#define CPU_FLAGS_MMX (1 << 0)
-#define CPU_FLAGS_SSE (1 << 1)
-#define CPU_FLAGS_SSE2 (1 << 2)
-#define CPU_FLAGS_SSE3 (1 << 3)
-#define CPU_FLAGS_SSSE3 (1 << 4)
-#define CPU_FLAGS_SSE4_1 (1 << 5)
-#define CPU_FLAGS_SSE4_2 (1 << 6)
-#define CPU_FLAGS_AVX (1 << 7)
-#define CPU_FLAGS_AVX2 (1 << 8)
-#define CPU_FLAGS_AVX512F (1 << 9)
-#define CPU_FLAGS_AVX512CD (1 << 10)
-#define CPU_FLAGS_AVX512DQ (1 << 11)
-#define CPU_FLAGS_AVX512ER (1 << 12)
-#define CPU_FLAGS_AVX512PF (1 << 13)
-#define CPU_FLAGS_AVX512BW (1 << 14)
-#define CPU_FLAGS_AVX512VL (1 << 15)
-#define CPU_FLAGS_ALL ((CPU_FLAGS_AVX512VL << 1) - 1)
-#define CPU_FLAGS_INVALID (1ULL << (sizeof(CPU_FLAGS) * 8ULL - 1ULL))
+typedef uint64_t EbCpuFlags;
+#ifdef ARCH_X86_64
+#define EB_CPU_FLAGS_MMX (1 << 0)
+#define EB_CPU_FLAGS_SSE (1 << 1)
+#define EB_CPU_FLAGS_SSE2 (1 << 2)
+#define EB_CPU_FLAGS_SSE3 (1 << 3)
+#define EB_CPU_FLAGS_SSSE3 (1 << 4)
+#define EB_CPU_FLAGS_SSE4_1 (1 << 5)
+#define EB_CPU_FLAGS_SSE4_2 (1 << 6)
+#define EB_CPU_FLAGS_AVX (1 << 7)
+#define EB_CPU_FLAGS_AVX2 (1 << 8)
+#define EB_CPU_FLAGS_AVX512F (1 << 9)
+#define EB_CPU_FLAGS_AVX512CD (1 << 10)
+#define EB_CPU_FLAGS_AVX512DQ (1 << 11)
+#define EB_CPU_FLAGS_AVX512ER (1 << 12)
+#define EB_CPU_FLAGS_AVX512PF (1 << 13)
+#define EB_CPU_FLAGS_AVX512BW (1 << 14)
+#define EB_CPU_FLAGS_AVX512VL (1 << 15)
+#elif defined(ARCH_AARCH64)
+#define EB_CPU_FLAGS_NEON (1 << 0)
+#endif
+#define EB_CPU_FLAGS_INVALID (1ULL << (sizeof(EbCpuFlags) * 8ULL - 1ULL))
+#define EB_CPU_FLAGS_ALL ((EB_CPU_FLAGS_INVALID >> 1) - 1)
 
 #ifdef __cplusplus
 }

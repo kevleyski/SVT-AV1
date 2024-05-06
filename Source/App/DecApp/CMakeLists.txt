@@ -12,13 +12,27 @@
 # APP Directory CMakeLists.txt
 
 # Include Subdirectories
-include_directories(${PROJECT_SOURCE_DIR}/Source/API/
-    ${CMAKE_OUTPUT_DIRECTORY}/)
+include_directories(${PROJECT_SOURCE_DIR}/Source/API/)
 
-file(GLOB all_files
-    "*.h"
-    "../API/*.h"
-    "*.c")
+set(all_files
+    ../../API/EbDebugMacros.h
+    ../../API/EbSvtAv1.h
+    ../../API/EbSvtAv1Dec.h
+    ../../API/EbSvtAv1Enc.h
+    ../../API/EbSvtAv1ErrorCodes.h
+    ../../API/EbSvtAv1ExtFrameBuf.h
+    ../../API/EbSvtAv1Formats.h
+    ../../API/EbSvtAv1Metadata.h
+    EbDecAppMain.c
+    EbDecParamParser.c
+    EbDecParamParser.h
+    EbDecTime.c
+    EbDecTime.h
+    EbFileUtils.c
+    EbFileUtils.h
+    EbMD5Utility.c
+    EbMD5Utility.h
+    )
 
 # App Source Files
 add_executable(SvtAv1DecApp
@@ -29,7 +43,9 @@ add_executable(SvtAv1DecApp
 target_link_libraries(SvtAv1DecApp
     SvtAv1Dec)
 
-if(UNIX)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Android")
+    target_link_libraries(SvtAv1DecApp ${PLATFORM_LIBS})
+elseif(UNIX)
     target_link_libraries(SvtAv1DecApp
         pthread
         m)

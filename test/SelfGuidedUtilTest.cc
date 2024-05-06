@@ -1,13 +1,14 @@
 /*
-* Copyright(c) 2019 Netflix, Inc.
-*
-* This source code is subject to the terms of the BSD 2 Clause License and
-* the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
-* was not distributed with this source code in the LICENSE file, you can
-* obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
-* Media Patent License 1.0 was not distributed with this source code in the
-* PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
-*/
+ * Copyright(c) 2019 Netflix, Inc.
+ *
+ * This source code is subject to the terms of the BSD 2 Clause License and
+ * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+ * was not distributed with this source code in the LICENSE file, you can
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
+ */
 
 /******************************************************************************
  * @file pixel_proj_err_test.cc
@@ -87,25 +88,25 @@ class PixelProjErrorTest
     }
 
     virtual void SetUp() {
-        src_ = (Sample *)(eb_aom_malloc(MAX_DATA_BLOCK * MAX_DATA_BLOCK *
-                                        sizeof(*src_)));
+        src_ = (Sample *)(svt_aom_malloc(MAX_DATA_BLOCK * MAX_DATA_BLOCK *
+                                         sizeof(*src_)));
         ASSERT_NE(src_, nullptr);
-        dgd_ = (Sample *)(eb_aom_malloc(MAX_DATA_BLOCK * MAX_DATA_BLOCK *
-                                        sizeof(*dgd_)));
+        dgd_ = (Sample *)(svt_aom_malloc(MAX_DATA_BLOCK * MAX_DATA_BLOCK *
+                                         sizeof(*dgd_)));
         ASSERT_NE(dgd_, nullptr);
-        flt0_ = (int32_t *)(eb_aom_malloc(MAX_DATA_BLOCK * MAX_DATA_BLOCK *
-                                          sizeof(*flt0_)));
+        flt0_ = (int32_t *)(svt_aom_malloc(MAX_DATA_BLOCK * MAX_DATA_BLOCK *
+                                           sizeof(*flt0_)));
         ASSERT_NE(flt0_, nullptr);
-        flt1_ = (int32_t *)(eb_aom_malloc(MAX_DATA_BLOCK * MAX_DATA_BLOCK *
-                                          sizeof(*flt1_)));
+        flt1_ = (int32_t *)(svt_aom_malloc(MAX_DATA_BLOCK * MAX_DATA_BLOCK *
+                                           sizeof(*flt1_)));
         ASSERT_NE(flt1_, nullptr);
     }
 
     virtual void TearDown() {
-        eb_aom_free(src_);
-        eb_aom_free(dgd_);
-        eb_aom_free(flt0_);
-        eb_aom_free(flt1_);
+        svt_aom_free(src_);
+        svt_aom_free(dgd_);
+        svt_aom_free(flt0_);
+        svt_aom_free(flt1_);
     }
 
     virtual void prepare_random_data() = 0;
@@ -254,14 +255,14 @@ class PixelProjErrorTest
 
         printf("Average Nanoseconds per Function Call\n");
         printf(
-            "    eb_av1_lowbd_pixel_proj_error_c(size: %d, r0: %d, r1: %d)   : "
+            "   svt_av1_lowbd_pixel_proj_error_c(size: %d, r0: %d, r1: %d)   : "
             "%6.2f\n",
             size,
             r0,
             r1,
             1000000 * time_c / num_loop);
         printf(
-            "    eb_av1_lowbd_pixel_proj_error_optsize: %d, r0: %d, r1: %d) : "
+            "   svt_av1_lowbd_pixel_proj_error_optsize: %d, r0: %d, r1: %d) : "
             "%6.2f   (Comparison: "
             "%5.2fx)\n",
             size,
@@ -329,11 +330,13 @@ TEST_P(PixelProjErrorLbdTest, DISABLED_SpeedTest) {
 }
 
 static const PixelProjErrorTestParam lbd_test_vector[] = {
-    make_tuple(eb_av1_lowbd_pixel_proj_error_avx2,
-               eb_av1_lowbd_pixel_proj_error_c),
-#ifndef NON_AVX512_SUPPORT
-    make_tuple(eb_av1_lowbd_pixel_proj_error_avx512,
-               eb_av1_lowbd_pixel_proj_error_c)
+    make_tuple(svt_av1_lowbd_pixel_proj_error_sse4_1,
+               svt_av1_lowbd_pixel_proj_error_c),
+    make_tuple(svt_av1_lowbd_pixel_proj_error_avx2,
+               svt_av1_lowbd_pixel_proj_error_c),
+#if EN_AVX512_SUPPORT
+    make_tuple(svt_av1_lowbd_pixel_proj_error_avx512,
+               svt_av1_lowbd_pixel_proj_error_c)
 #endif
 };
 
@@ -377,8 +380,11 @@ TEST_P(PixelProjErrorHbdTest, MatchTestWithExtremeValue) {
     run_extreme_test();
 }
 
-static const PixelProjErrorTestParam hbd_test_vector[] = {make_tuple(
-    eb_av1_highbd_pixel_proj_error_avx2, eb_av1_highbd_pixel_proj_error_c)};
+static const PixelProjErrorTestParam hbd_test_vector[] = {
+    make_tuple(svt_av1_highbd_pixel_proj_error_sse4_1,
+               svt_av1_highbd_pixel_proj_error_c),
+    make_tuple(svt_av1_highbd_pixel_proj_error_avx2,
+               svt_av1_highbd_pixel_proj_error_c)};
 
 INSTANTIATE_TEST_CASE_P(RST, PixelProjErrorHbdTest,
                         ::testing::ValuesIn(hbd_test_vector));
@@ -387,15 +393,15 @@ INSTANTIATE_TEST_CASE_P(RST, PixelProjErrorHbdTest,
 TEST(SelfGuidedToolsTest, GetProjSubspaceMatchTest) {
     const int32_t pu_width = RESTORATION_PROC_UNIT_SIZE;
     const int32_t pu_height = RESTORATION_PROC_UNIT_SIZE;
-    const int32_t width = 256, height = 256, stride = 288, out_stride = 288;
+    const int32_t width = 270, height = 256, stride = 300, out_stride = 300;
     const int NUM_ITERS = 2000;
     int i, j, k;
 
-    uint8_t *input_ = (uint8_t *)eb_aom_memalign(
+    uint8_t *input_ = (uint8_t *)svt_aom_memalign(
         32, stride * (height + 32) * sizeof(uint8_t));
-    uint8_t *output_ = (uint8_t *)eb_aom_memalign(
+    uint8_t *output_ = (uint8_t *)svt_aom_memalign(
         32, out_stride * (height + 32) * sizeof(uint8_t));
-    int32_t *tmpbuf = (int32_t *)eb_aom_memalign(32, RESTORATION_TMPBUF_SIZE);
+    int32_t *tmpbuf = (int32_t *)svt_aom_memalign(32, RESTORATION_TMPBUF_SIZE);
     uint8_t *input = input_ + stride * 16 + 16;
     uint8_t *output = output_ + out_stride * 16 + 16;
     int32_t *flt0 = tmpbuf;
@@ -405,14 +411,27 @@ TEST(SelfGuidedToolsTest, GetProjSubspaceMatchTest) {
     // check all the sg params
     SVTRandom rnd(8, false);
     for (int iter = 0; iter < NUM_ITERS; ++iter) {
-        // prepare src data and recon data
-        for (i = -16; i < height + 16; ++i) {
-            for (j = -16; j < width + 16; ++j) {
-                input[i * stride + j] = rnd.random();
-                if (iter == 0)
-                    output[i * stride + j] = input[i * stride + j];
-                else
-                    output[i * stride + j] = rnd.random();
+        if (iter == 0) {
+            // prepare src data and recon data
+            for (i = -16; i < height + 16; ++i) {
+                for (j = -16; j < width + 16; ++j) {
+                    input[i * stride + j] = rnd.random();
+                    if (iter == 0)
+                        output[i * stride + j] = input[i * stride + j];
+                    else
+                        output[i * stride + j] = rnd.random();
+                }
+            }
+        } else {
+            // prepare src data and recon data
+            for (i = -16; i < height + 16; ++i) {
+                for (j = -16; j < width + 16; ++j) {
+                    input[i * stride + j] = 0;
+                    if (iter == 0)
+                        output[i * stride + j] = input[i * stride + j];
+                    else
+                        output[i * stride + j] = 0;
+                }
             }
         }
 
@@ -427,23 +446,23 @@ TEST(SelfGuidedToolsTest, GetProjSubspaceMatchTest) {
                     int32_t *flt1_p = flt1 + k * flt_stride + j;
                     assert(w * h <= RESTORATION_UNITPELS_MAX);
 
-                    eb_av1_selfguided_restoration_avx2(output_p,
-                                                       w,
-                                                       h,
-                                                       out_stride,
-                                                       flt0_p,
-                                                       flt1_p,
-                                                       flt_stride,
-                                                       ep,
-                                                       8,
-                                                       0);
+                    svt_av1_selfguided_restoration_avx2(output_p,
+                                                        w,
+                                                        h,
+                                                        out_stride,
+                                                        flt0_p,
+                                                        flt1_p,
+                                                        flt_stride,
+                                                        ep,
+                                                        8,
+                                                        0);
                 }
             }
 
             aom_clear_system_state();
             int32_t xqd_c[2] = {0};
             int32_t xqd_asm[2] = {0};
-            const SgrParamsType *const params = &eb_sgr_params[ep];
+            const SgrParamsType *const params = &svt_aom_eb_sgr_params[ep];
             svt_get_proj_subspace_c(input,
                                     width,
                                     height,
@@ -479,8 +498,124 @@ TEST(SelfGuidedToolsTest, GetProjSubspaceMatchTest) {
         }
     }
 
-    eb_aom_free(input_);
-    eb_aom_free(output_);
-    eb_aom_free(tmpbuf);
+    svt_aom_free(input_);
+    svt_aom_free(output_);
+    svt_aom_free(tmpbuf);
 }
+
+// test svt_get_proj_subspace
+TEST(SelfGuidedToolsTest, GetProjSubspaceMatchTestHbd) {
+    const int32_t pu_width = RESTORATION_PROC_UNIT_SIZE;
+    const int32_t pu_height = RESTORATION_PROC_UNIT_SIZE;
+    const int32_t width = 270, height = 256, stride = 300, out_stride = 300;
+    const int NUM_ITERS = 2000;
+    int i, j, k;
+
+    uint16_t *input_ = (uint16_t *)svt_aom_memalign(
+        32, stride * (height + 32) * sizeof(uint16_t));
+    uint16_t *output_ = (uint16_t *)svt_aom_memalign(
+        32, out_stride * (height + 32) * sizeof(uint16_t));
+    int32_t *tmpbuf = (int32_t *)svt_aom_memalign(32, RESTORATION_TMPBUF_SIZE);
+    uint16_t *input = input_ + stride * 16 + 16;
+    uint16_t *output = output_ + out_stride * 16 + 16;
+    int32_t *flt0 = tmpbuf;
+    int32_t *flt1 = flt0 + RESTORATION_UNITPELS_MAX;
+    int32_t flt_stride = ((width + 7) & ~7) + 8;
+
+    // check all the sg params
+    SVTRandom rnd(8, false);
+    for (int iter = 0; iter < NUM_ITERS; ++iter) {
+        if (iter == 0) {
+            // prepare src data and recon data
+            for (i = -16; i < height + 16; ++i) {
+                for (j = -16; j < width + 16; ++j) {
+                    input[i * stride + j] = rnd.random();
+                    if (iter == 0)
+                        output[i * stride + j] = input[i * stride + j];
+                    else
+                        output[i * stride + j] = rnd.random();
+                }
+            }
+        } else {
+            // prepare src data and recon data
+            for (i = -16; i < height + 16; ++i) {
+                for (j = -16; j < width + 16; ++j) {
+                    input[i * stride + j] = 0;
+                    if (iter == 0)
+                        output[i * stride + j] = input[i * stride + j];
+                    else
+                        output[i * stride + j] = 0;
+                }
+            }
+        }
+
+        for (int32_t ep = 0; ep < SGRPROJ_PARAMS; ++ep) {
+            // apply selfguided filter to get A and b
+            for (k = 0; k < height; k += pu_height) {
+                for (j = 0; j < width; j += pu_width) {
+                    int32_t w = AOMMIN(pu_width, width - j);
+                    int32_t h = AOMMIN(pu_height, height - k);
+                    uint16_t *output_p = output + k * out_stride + j;
+                    int32_t *flt0_p = flt0 + k * flt_stride + j;
+                    int32_t *flt1_p = flt1 + k * flt_stride + j;
+                    assert(w * h <= RESTORATION_UNITPELS_MAX);
+
+                    svt_av1_selfguided_restoration_avx2((uint8_t *)output_p,
+                                                        w,
+                                                        h,
+                                                        out_stride,
+                                                        flt0_p,
+                                                        flt1_p,
+                                                        flt_stride,
+                                                        ep,
+                                                        8,
+                                                        0);
+                }
+            }
+
+            aom_clear_system_state();
+            int32_t xqd_c[2] = {0};
+            int32_t xqd_asm[2] = {0};
+            const SgrParamsType *const params = &svt_aom_eb_sgr_params[ep];
+            svt_get_proj_subspace_c(CONVERT_TO_BYTEPTR(input),
+                                    width,
+                                    height,
+                                    stride,
+                                    CONVERT_TO_BYTEPTR(output),
+                                    out_stride,
+                                    1,
+                                    flt0,
+                                    flt_stride,
+                                    flt1,
+                                    flt_stride,
+                                    xqd_c,
+                                    params);
+            svt_get_proj_subspace_avx2(CONVERT_TO_BYTEPTR(input),
+                                       width,
+                                       height,
+                                       stride,
+                                       CONVERT_TO_BYTEPTR(output),
+                                       out_stride,
+                                       1,
+                                       flt0,
+                                       flt_stride,
+                                       flt1,
+                                       flt_stride,
+                                       xqd_asm,
+                                       params);
+
+            ASSERT_EQ(xqd_c[0], xqd_asm[0])
+                << "xqd_asm[0] does not match with xqd_asm[0] with iter "
+                << iter << " ep " << ep;
+            ASSERT_EQ(xqd_c[1], xqd_asm[1])
+                << "xqd_asm[1] does not match with xqd_asm[1] with iter "
+                << iter << " ep " << ep;
+        }
+    }
+
+    svt_aom_free(input_);
+    svt_aom_free(output_);
+    svt_aom_free(tmpbuf);
+}
+
 }  // namespace

@@ -4,9 +4,10 @@
  * This source code is subject to the terms of the BSD 2 Clause License and
  * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
  * was not distributed with this source code in the LICENSE file, you can
- * obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
- * Media Patent License 1.0 was not distributed with this source code in the
- * PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
  */
 
 #include <ctime>
@@ -57,11 +58,12 @@ class AV1SelfguidedFilterTest
         const int NUM_ITERS = 2000;
         int i, j, k;
 
-        uint8_t *input_ = (uint8_t *)eb_aom_memalign(
+        uint8_t *input_ = (uint8_t *)svt_aom_memalign(
             32, stride * (height + 32) * sizeof(uint8_t));
-        uint8_t *output_ = (uint8_t *)eb_aom_memalign(
+        uint8_t *output_ = (uint8_t *)svt_aom_memalign(
             32, out_stride * (height + 32) * sizeof(uint8_t));
-        int32_t *tmpbuf = (int32_t *)eb_aom_memalign(32, RESTORATION_TMPBUF_SIZE);
+        int32_t *tmpbuf =
+            (int32_t *)svt_aom_memalign(32, RESTORATION_TMPBUF_SIZE);
         uint8_t *input = input_ + stride * 16 + 16;
         uint8_t *output = output_ + out_stride * 16 + 16;
 
@@ -92,17 +94,17 @@ class AV1SelfguidedFilterTest
                     int32_t h = AOMMIN(pu_height, height - k);
                     uint8_t *input_p = input + k * stride + j;
                     uint8_t *output_p = output + k * out_stride + j;
-                    eb_apply_selfguided_restoration_c(input_p,
-                                                   w,
-                                                   h,
-                                                   stride,
-                                                   eps,
-                                                   xqd,
-                                                   output_p,
-                                                   out_stride,
-                                                   tmpbuf,
-                                                   8,
-                                                   0);
+                    svt_apply_selfguided_restoration_c(input_p,
+                                                       w,
+                                                       h,
+                                                       stride,
+                                                       eps,
+                                                       xqd,
+                                                       output_p,
+                                                       out_stride,
+                                                       tmpbuf,
+                                                       8,
+                                                       0);
                 }
         }
         svt_av1_get_time(&middle_time_seconds, &middle_time_useconds);
@@ -148,9 +150,9 @@ class AV1SelfguidedFilterTest
             << "C time: " << ref_time << " us\n"
             << "SIMD time: " << tst_time << " us\n";
 
-        eb_aom_free(input_);
-        eb_aom_free(output_);
-        eb_aom_free(tmpbuf);
+        svt_aom_free(input_);
+        svt_aom_free(output_);
+        svt_aom_free(tmpbuf);
     }
 
     void RunCorrectnessTest() {
@@ -164,13 +166,14 @@ class AV1SelfguidedFilterTest
         const int NUM_ITERS = 81;
         int i, j, k;
 
-        uint8_t *input_ = (uint8_t *)eb_aom_memalign(
+        uint8_t *input_ = (uint8_t *)svt_aom_memalign(
             32, stride * (max_h + 32) * sizeof(uint8_t));
-        uint8_t *output_ = (uint8_t *)eb_aom_memalign(
+        uint8_t *output_ = (uint8_t *)svt_aom_memalign(
             32, out_stride * (max_h + 32) * sizeof(uint8_t));
-        uint8_t *output2_ = (uint8_t *)eb_aom_memalign(
+        uint8_t *output2_ = (uint8_t *)svt_aom_memalign(
             32, out_stride * (max_h + 32) * sizeof(uint8_t));
-        int32_t *tmpbuf = (int32_t *)eb_aom_memalign(32, RESTORATION_TMPBUF_SIZE);
+        int32_t *tmpbuf =
+            (int32_t *)svt_aom_memalign(32, RESTORATION_TMPBUF_SIZE);
 
         uint8_t *input = input_ + stride * 16 + 16;
         uint8_t *output = output_ + out_stride * 16 + 16;
@@ -212,17 +215,17 @@ class AV1SelfguidedFilterTest
                              tmpbuf,
                              8,
                              0);
-                    eb_apply_selfguided_restoration_c(input_p,
-                                                   w,
-                                                   h,
-                                                   stride,
-                                                   eps,
-                                                   xqd,
-                                                   output2_p,
-                                                   out_stride,
-                                                   tmpbuf,
-                                                   8,
-                                                   0);
+                    svt_apply_selfguided_restoration_c(input_p,
+                                                       w,
+                                                       h,
+                                                       stride,
+                                                       eps,
+                                                       xqd,
+                                                       output2_p,
+                                                       out_stride,
+                                                       tmpbuf,
+                                                       8,
+                                                       0);
                 }
 
             for (j = 0; j < test_h; ++j)
@@ -232,10 +235,10 @@ class AV1SelfguidedFilterTest
                 }
         }
 
-        eb_aom_free(input_);
-        eb_aom_free(output_);
-        eb_aom_free(output2_);
-        eb_aom_free(tmpbuf);
+        svt_aom_free(input_);
+        svt_aom_free(output_);
+        svt_aom_free(output2_);
+        svt_aom_free(tmpbuf);
     }
 
   private:
@@ -249,9 +252,25 @@ TEST_P(AV1SelfguidedFilterTest, CorrectnessTest) {
     RunCorrectnessTest();
 }
 
+#ifdef ARCH_X86_64
+
+INSTANTIATE_TEST_CASE_P(
+    SSE4_1, AV1SelfguidedFilterTest,
+    ::testing::Values(make_tuple(svt_apply_selfguided_restoration_sse4_1)));
+
 INSTANTIATE_TEST_CASE_P(
     AVX2, AV1SelfguidedFilterTest,
-    ::testing::Values(make_tuple(eb_apply_selfguided_restoration_avx2)));
+    ::testing::Values(make_tuple(svt_apply_selfguided_restoration_avx2)));
+
+#endif /* ARCH_X86_64 */
+
+#ifdef ARCH_AARCH64
+
+INSTANTIATE_TEST_CASE_P(
+    NEON, AV1SelfguidedFilterTest,
+    ::testing::Values(make_tuple(svt_aom_apply_selfguided_restoration_neon)));
+
+#endif /* ARCH_AARCH64 */
 
 // Test parameter list:
 //  <tst_fun_, bit_depth>
@@ -280,11 +299,12 @@ class AV1HighbdSelfguidedFilterTest
         int32_t bit_depth = TEST_GET_PARAM(1);
         int mask = (1 << bit_depth) - 1;
 
-        uint16_t *input_ = (uint16_t *)eb_aom_memalign(
+        uint16_t *input_ = (uint16_t *)svt_aom_memalign(
             32, stride * (height + 32) * sizeof(uint16_t));
-        uint16_t *output_ = (uint16_t *)eb_aom_memalign(
+        uint16_t *output_ = (uint16_t *)svt_aom_memalign(
             32, out_stride * (height + 32) * sizeof(uint16_t));
-        int32_t *tmpbuf = (int32_t *)eb_aom_memalign(32, RESTORATION_TMPBUF_SIZE);
+        int32_t *tmpbuf =
+            (int32_t *)svt_aom_memalign(32, RESTORATION_TMPBUF_SIZE);
         uint16_t *input = input_ + stride * 16 + 16;
         uint16_t *output = output_ + out_stride * 16 + 16;
 
@@ -315,17 +335,18 @@ class AV1HighbdSelfguidedFilterTest
                     int32_t h = AOMMIN(pu_height, height - k);
                     uint16_t *input_p = input + k * stride + j;
                     uint16_t *output_p = output + k * out_stride + j;
-                    eb_apply_selfguided_restoration_c(CONVERT_TO_BYTEPTR(input_p),
-                                                   w,
-                                                   h,
-                                                   stride,
-                                                   eps,
-                                                   xqd,
-                                                   CONVERT_TO_BYTEPTR(output_p),
-                                                   out_stride,
-                                                   tmpbuf,
-                                                   bit_depth,
-                                                   1);
+                    svt_apply_selfguided_restoration_c(
+                        CONVERT_TO_BYTEPTR(input_p),
+                        w,
+                        h,
+                        stride,
+                        eps,
+                        xqd,
+                        CONVERT_TO_BYTEPTR(output_p),
+                        out_stride,
+                        tmpbuf,
+                        bit_depth,
+                        1);
                 }
         }
         svt_av1_get_time(&middle_time_seconds, &middle_time_useconds);
@@ -373,9 +394,9 @@ class AV1HighbdSelfguidedFilterTest
             << "C time: " << ref_time << " us\n"
             << "SIMD time: " << tst_time << " us\n";
 
-        eb_aom_free(input_);
-        eb_aom_free(output_);
-        eb_aom_free(tmpbuf);
+        svt_aom_free(input_);
+        svt_aom_free(output_);
+        svt_aom_free(tmpbuf);
     }
 
     void RunCorrectnessTest() {
@@ -391,13 +412,14 @@ class AV1HighbdSelfguidedFilterTest
         int32_t bit_depth = TEST_GET_PARAM(1);
         int mask = (1 << bit_depth) - 1;
 
-        uint16_t *input_ = (uint16_t *)eb_aom_memalign(
+        uint16_t *input_ = (uint16_t *)svt_aom_memalign(
             32, stride * (max_h + 32) * sizeof(uint16_t));
-        uint16_t *output_ = (uint16_t *)eb_aom_memalign(
+        uint16_t *output_ = (uint16_t *)svt_aom_memalign(
             32, out_stride * (max_h + 32) * sizeof(uint16_t));
-        uint16_t *output2_ = (uint16_t *)eb_aom_memalign(
+        uint16_t *output2_ = (uint16_t *)svt_aom_memalign(
             32, out_stride * (max_h + 32) * sizeof(uint16_t));
-        int32_t *tmpbuf = (int32_t *)eb_aom_memalign(32, RESTORATION_TMPBUF_SIZE);
+        int32_t *tmpbuf =
+            (int32_t *)svt_aom_memalign(32, RESTORATION_TMPBUF_SIZE);
 
         uint16_t *input = input_ + stride * 16 + 16;
         uint16_t *output = output_ + out_stride * 16 + 16;
@@ -439,7 +461,7 @@ class AV1HighbdSelfguidedFilterTest
                              tmpbuf,
                              bit_depth,
                              1);
-                    eb_apply_selfguided_restoration_c(
+                    svt_apply_selfguided_restoration_c(
                         CONVERT_TO_BYTEPTR(input_p),
                         w,
                         h,
@@ -459,10 +481,10 @@ class AV1HighbdSelfguidedFilterTest
                               output2[j * out_stride + k]);
         }
 
-        eb_aom_free(input_);
-        eb_aom_free(output_);
-        eb_aom_free(output2_);
-        eb_aom_free(tmpbuf);
+        svt_aom_free(input_);
+        svt_aom_free(output_);
+        svt_aom_free(output2_);
+        svt_aom_free(tmpbuf);
     }
 
   private:
@@ -476,388 +498,20 @@ TEST_P(AV1HighbdSelfguidedFilterTest, CorrectnessTest) {
     RunCorrectnessTest();
 }
 
+#ifdef ARCH_X86_64
+
 const int32_t highbd_params_avx2[] = {8, 10, 12};
 INSTANTIATE_TEST_CASE_P(
+    SSE4_1, AV1HighbdSelfguidedFilterTest,
+    ::testing::Combine(
+        ::testing::Values(svt_apply_selfguided_restoration_sse4_1),
+        ::testing::ValuesIn(highbd_params_avx2)));
+
+INSTANTIATE_TEST_CASE_P(
     AVX2, AV1HighbdSelfguidedFilterTest,
-    ::testing::Combine(::testing::Values(eb_apply_selfguided_restoration_avx2),
+    ::testing::Combine(::testing::Values(svt_apply_selfguided_restoration_avx2),
                        ::testing::ValuesIn(highbd_params_avx2)));
 
-#if 0
-// To test integral_images() and integral_images_highbd(), make them not static,
-// and add declarations to header file.
-static void init_data_integral_images(uint8_t **src8, uint16_t **src16,
-                                      int32_t *src_stride) {
-    *src_stride =
-        eb_create_random_aligned_stride(2 * RESTORATION_UNITSIZE_MAX, 64);
-    *src8 = (uint8_t *)malloc(sizeof(**src8) * 2 * RESTORATION_UNITSIZE_MAX *
-                              *src_stride);
-    *src16 = (uint16_t *)malloc(sizeof(**src16) * 2 * RESTORATION_UNITSIZE_MAX *
-                                *src_stride);
-    eb_buf_random_u8(*src8, 2 * RESTORATION_UNITSIZE_MAX * *src_stride);
-    eb_buf_random_u16_with_bd(
-        *src16, 2 * RESTORATION_UNITSIZE_MAX * *src_stride, 12);
-}
-
-static void uninit_data_integral_images(uint8_t *src8, uint16_t *src16) {
-    free(src8);
-    free(src16);
-}
-
-static void integral_images_c(const uint8_t *src, int32_t src_stride,
-                              int32_t width, int32_t height, int32_t *C,
-                              int32_t *D, int32_t buf_stride) {
-    for (int x = 0; x < width; x++) {
-        C[x + 1] = 0;
-        D[x + 1] = 0;
-    }
-
-    for (int y = 0; y < height; y++) {
-        C[(y + 1) * buf_stride] = 0;
-        D[(y + 1) * buf_stride] = 0;
-        for (int x = 0; x < width; x++) {
-            C[(y + 1) * buf_stride + x + 1] =
-                C[(y + 1) * buf_stride + x] +
-                src[y * src_stride + x] * src[y * src_stride + x];
-            D[(y + 1) * buf_stride + x + 1] =
-                D[(y + 1) * buf_stride + x] + src[y * src_stride + x];
-        }
-    }
-
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            C[(y + 1) * buf_stride + x + 1] += C[y * buf_stride + x + 1];
-            D[(y + 1) * buf_stride + x + 1] += D[y * buf_stride + x + 1];
-        }
-    }
-}
-
-static void integral_images_highbd_c(const uint16_t *src, int32_t src_stride,
-                                     int32_t width, int32_t height, int32_t *C,
-                                     int32_t *D, int32_t buf_stride) {
-    for (int x = 0; x < width; x++) {
-        C[x + 1] = 0;
-        D[x + 1] = 0;
-    }
-
-    for (int y = 0; y < height; y++) {
-        C[(y + 1) * buf_stride] = 0;
-        D[(y + 1) * buf_stride] = 0;
-        for (int x = 0; x < width; x++) {
-            C[(y + 1) * buf_stride + x + 1] =
-                C[(y + 1) * buf_stride + x] +
-                src[y * src_stride + x] * src[y * src_stride + x];
-            D[(y + 1) * buf_stride + x + 1] =
-                D[(y + 1) * buf_stride + x] + src[y * src_stride + x];
-        }
-    }
-
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            C[(y + 1) * buf_stride + x + 1] += C[y * buf_stride + x + 1];
-            D[(y + 1) * buf_stride + x + 1] += D[y * buf_stride + x + 1];
-        }
-    }
-}
-
-TEST(IntegralImagesTest, integral_images) {
-    uint8_t *src8;
-    uint16_t *src16;
-    int32_t src_stride;
-
-    // The ALIGN_POWER_OF_TWO macro here ensures that column 1 of atl, btl,
-    // ctl and dtl is 32-byte aligned.
-    const int32_t buf_elts = ALIGN_POWER_OF_TWO(RESTORATION_PROC_UNIT_PELS, 3);
-    int32_t *buf_c, *buf_o;
-
-    buf_c = (int32_t *)eb_aom_memalign(32, sizeof(*buf_c) * 4 * buf_elts);
-    buf_o = (int32_t *)eb_aom_memalign(32, sizeof(*buf_o) * 4 * buf_elts);
-
-    for (int i = 0; i < 10; i++) {
-        init_data_integral_images(&src8, &src16, &src_stride);
-
-        for (int height = 2; height < 32; height += 2) {
-            for (int width = 2; width < 32; width += 2) {
-                // From av1_selfguided_restoration_avx2()
-                const int32_t width_ext = width + 2 * SGRPROJ_BORDER_HORZ;
-                const int32_t height_ext = height + 2 * SGRPROJ_BORDER_VERT;
-
-                // Adjusting the stride of A and b here appears to avoid bad
-                // cache effects, leading to a significant speed
-                // improvement. We also align the stride to a multiple of 32
-                // bytes for efficiency.
-                int32_t buf_stride = ALIGN_POWER_OF_TWO(width_ext + 16, 3);
-
-                // The "tl" pointers point at the top-left of the
-                // initialised data for the array.
-                int32_t *Atl_c = buf_c + 0 * buf_elts + 7;
-                int32_t *Btl_c = buf_c + 1 * buf_elts + 7;
-                int32_t *Ctl_c = buf_c + 2 * buf_elts + 7;
-                int32_t *Dtl_c = buf_c + 3 * buf_elts + 7;
-                int32_t *Atl_o = buf_o + 0 * buf_elts + 7;
-                int32_t *Btl_o = buf_o + 1 * buf_elts + 7;
-                int32_t *Ctl_o = buf_o + 2 * buf_elts + 7;
-                int32_t *Dtl_o = buf_o + 3 * buf_elts + 7;
-
-                // The "0" pointers are (- SGRPROJ_BORDER_VERT,
-                // -SGRPROJ_BORDER_HORZ). Note there's a zero row and column
-                // in A, b (integral images), so we move down and right one
-                // for them.
-                const int32_t buf_diag_border =
-                    SGRPROJ_BORDER_HORZ + buf_stride * SGRPROJ_BORDER_VERT;
-
-                int32_t *A0_c = Atl_c + 1 + buf_stride;
-                int32_t *B0_c = Btl_c + 1 + buf_stride;
-                int32_t *C0_c = Ctl_c + 1 + buf_stride;
-                int32_t *D0_c = Dtl_c + 1 + buf_stride;
-                int32_t *A0_o = Atl_o + 1 + buf_stride;
-                int32_t *B0_o = Btl_o + 1 + buf_stride;
-                int32_t *C0_o = Ctl_o + 1 + buf_stride;
-                int32_t *D0_o = Dtl_o + 1 + buf_stride;
-
-                // Finally, A, b, C, D point at position (0, 0).
-                int32_t *A_c = A0_c + buf_diag_border;
-                int32_t *B_c = B0_c + buf_diag_border;
-                int32_t *C_c = C0_c + buf_diag_border;
-                int32_t *D_c = D0_c + buf_diag_border;
-                int32_t *A_o = A0_o + buf_diag_border;
-                int32_t *B_o = B0_o + buf_diag_border;
-                int32_t *C_o = C0_o + buf_diag_border;
-                int32_t *D_o = D0_o + buf_diag_border;
-
-                (void)A_c;
-                (void)A_o;
-                (void)B_c;
-                (void)B_o;
-                (void)C_c;
-                (void)C_o;
-                (void)D_c;
-                (void)D_o;
-
-                const int32_t dgd_diag_border =
-                    SGRPROJ_BORDER_HORZ + src_stride * SGRPROJ_BORDER_VERT;
-                // Done from av1_selfguided_restoration_avx2()
-
-                integral_images_c(src8,
-                                  src_stride,
-                                  width_ext,
-                                  height_ext,
-                                  Ctl_c,
-                                  Dtl_c,
-                                  buf_stride);
-
-                integral_images(src8,
-                                src_stride,
-                                width_ext,
-                                height_ext,
-                                Ctl_o,
-                                Dtl_o,
-                                buf_stride);
-
-                for (int y = 0; y < height_ext; y++) {
-                    for (int x = 0; x < width_ext; x++) {
-                        const int idx = y * buf_stride + x;
-                        EXPECT_EQ(C0_c[idx], C0_o[idx]);
-                        EXPECT_EQ(D0_c[idx], D0_o[idx]);
-                    }
-                }
-
-                integral_images_highbd_c(src16,
-                                         src_stride,
-                                         width_ext,
-                                         height_ext,
-                                         Ctl_c,
-                                         Dtl_c,
-                                         buf_stride);
-
-                integral_images_highbd(src16,
-                                       src_stride,
-                                       width_ext,
-                                       height_ext,
-                                       Ctl_o,
-                                       Dtl_o,
-                                       buf_stride);
-
-                for (int y = 0; y < height_ext; y++) {
-                    for (int x = 0; x < width_ext; x++) {
-                        const int idx = y * buf_stride + x;
-                        EXPECT_EQ(C0_c[idx], C0_o[idx]);
-                        EXPECT_EQ(D0_c[idx], D0_o[idx]);
-                    }
-                }
-            }
-        }
-
-        uninit_data_integral_images(src8, src16);
-    }
-
-    eb_aom_free(buf_c);
-    eb_aom_free(buf_o);
-}
-
-TEST(IntegralImagesTest, DISABLED_integral_images_speed) {
-    uint8_t *src8;
-    uint16_t *src16;
-    int32_t src_stride;
-    double time_c, time_o;
-    uint64_t start_time_seconds, start_time_useconds;
-    uint64_t middle_time_seconds, middle_time_useconds;
-    uint64_t finish_time_seconds, finish_time_useconds;
-
-    // The ALIGN_POWER_OF_TWO macro here ensures that column 1 of atl, btl,
-    // ctl and dtl is 32-byte aligned.
-    const int32_t buf_elts = ALIGN_POWER_OF_TWO(RESTORATION_PROC_UNIT_PELS, 3);
-    int32_t *buf_c, *buf_o;
-
-    buf_c = (int32_t *)eb_aom_memalign(32, sizeof(*buf_c) * 4 * buf_elts);
-    buf_o = (int32_t *)eb_aom_memalign(32, sizeof(*buf_o) * 4 * buf_elts);
-
-    init_data_integral_images(&src8, &src16, &src_stride);
-    const int32_t width = 32;
-    const int32_t height = 32;
-
-    // From av1_selfguided_restoration_avx2()
-    const int32_t width_ext = width + 2 * SGRPROJ_BORDER_HORZ;
-    const int32_t height_ext = height + 2 * SGRPROJ_BORDER_VERT;
-
-    // Adjusting the stride of A and b here appears to avoid bad
-    // cache effects, leading to a significant speed
-    // improvement. We also align the stride to a multiple of 32
-    // bytes for efficiency.
-    int32_t buf_stride = ALIGN_POWER_OF_TWO(width_ext + 16, 3);
-
-    // The "tl" pointers point at the top-left of the
-    // initialised data for the array.
-    int32_t *Atl_c = buf_c + 0 * buf_elts + 7;
-    int32_t *Btl_c = buf_c + 1 * buf_elts + 7;
-    int32_t *Ctl_c = buf_c + 2 * buf_elts + 7;
-    int32_t *Dtl_c = buf_c + 3 * buf_elts + 7;
-    int32_t *Atl_o = buf_o + 0 * buf_elts + 7;
-    int32_t *Btl_o = buf_o + 1 * buf_elts + 7;
-    int32_t *Ctl_o = buf_o + 2 * buf_elts + 7;
-    int32_t *Dtl_o = buf_o + 3 * buf_elts + 7;
-
-    // The "0" pointers are (- SGRPROJ_BORDER_VERT,
-    // -SGRPROJ_BORDER_HORZ). Note there's a zero row and column
-    // in A, b (integral images), so we move down and right one
-    // for them.
-    const int32_t buf_diag_border =
-        SGRPROJ_BORDER_HORZ + buf_stride * SGRPROJ_BORDER_VERT;
-
-    int32_t *A0_c = Atl_c + 1 + buf_stride;
-    int32_t *B0_c = Btl_c + 1 + buf_stride;
-    int32_t *C0_c = Ctl_c + 1 + buf_stride;
-    int32_t *D0_c = Dtl_c + 1 + buf_stride;
-    int32_t *A0_o = Atl_o + 1 + buf_stride;
-    int32_t *B0_o = Btl_o + 1 + buf_stride;
-    int32_t *C0_o = Ctl_o + 1 + buf_stride;
-    int32_t *D0_o = Dtl_o + 1 + buf_stride;
-
-    // Finally, A, b, C, D point at position (0, 0).
-    int32_t *A_c = A0_c + buf_diag_border;
-    int32_t *B_c = B0_c + buf_diag_border;
-    int32_t *C_c = C0_c + buf_diag_border;
-    int32_t *D_c = D0_c + buf_diag_border;
-    int32_t *A_o = A0_o + buf_diag_border;
-    int32_t *B_o = B0_o + buf_diag_border;
-    int32_t *C_o = C0_o + buf_diag_border;
-    int32_t *D_o = D0_o + buf_diag_border;
-
-    (void)A_c;
-    (void)A_o;
-    (void)B_c;
-    (void)B_o;
-    (void)C_c;
-    (void)C_o;
-    (void)D_c;
-    (void)D_o;
-
-    const int32_t dgd_diag_border =
-        SGRPROJ_BORDER_HORZ + src_stride * SGRPROJ_BORDER_VERT;
-    // Done from av1_selfguided_restoration_avx2()
-
-    const uint64_t num_loop = 1000000;
-
-    svt_av1_get_time(&start_time_seconds, &start_time_useconds);
-
-    for (uint64_t i = 0; i < num_loop; i++) {
-        integral_images_c(
-            src8, src_stride, width_ext, height_ext, Ctl_c, Dtl_c, buf_stride);
-    }
-
-    svt_av1_get_time(&middle_time_seconds, &middle_time_useconds);
-
-    for (uint64_t i = 0; i < num_loop; i++) {
-        integral_images(
-            src8, src_stride, width_ext, height_ext, Ctl_o, Dtl_o, buf_stride);
-    }
-
-    svt_av1_get_time(&finish_time_seconds, &finish_time_useconds);
-    time_c = svt_av1_compute_overall_elapsed_time_ms(start_time_seconds,
-                                  start_time_useconds,
-                                  middle_time_seconds,
-                                  middle_time_useconds);
-    time_o = svt_av1_compute_overall_elapsed_time_ms(middle_time_seconds,
-                                  middle_time_useconds,
-                                  finish_time_seconds,
-                                  finish_time_useconds);
-
-    for (int y = 0; y < height_ext; y++) {
-        for (int x = 0; x < width_ext; x++) {
-            const int idx = y * buf_stride + x;
-            EXPECT_EQ(C0_c[idx], C0_o[idx]);
-            EXPECT_EQ(D0_c[idx], D0_o[idx]);
-        }
-    }
-
-    printf("Average Nanoseconds per Function Call\n");
-    printf("    integral_images_c    : %6.2f\n", 1000000 * time_c / num_loop);
-    printf("    integral_images_avx2 : %6.2f   (Comparison: %5.2fx)\n",
-           1000000 * time_o / num_loop,
-           time_c / time_o);
-
-    svt_av1_get_time(&start_time_seconds, &start_time_useconds);
-
-    for (uint64_t i = 0; i < num_loop; i++) {
-        integral_images_highbd_c(
-            src16, src_stride, width_ext, height_ext, Ctl_c, Dtl_c, buf_stride);
-    }
-
-    svt_av1_get_time(&middle_time_seconds, &middle_time_useconds);
-
-    for (uint64_t i = 0; i < num_loop; i++) {
-        integral_images_highbd(
-            src16, src_stride, width_ext, height_ext, Ctl_o, Dtl_o, buf_stride);
-    }
-
-    svt_av1_get_time(&finish_time_seconds, &finish_time_useconds);
-    time_c = svt_av1_compute_overall_elapsed_time_ms(start_time_seconds,
-                                  start_time_useconds,
-                                  middle_time_seconds,
-                                  middle_time_useconds);
-    time_o = svt_av1_compute_overall_elapsed_time_ms(middle_time_seconds,
-                                  middle_time_useconds,
-                                  finish_time_seconds,
-                                  finish_time_useconds);
-
-    for (int y = 0; y < height_ext; y++) {
-        for (int x = 0; x < width_ext; x++) {
-            const int idx = y * buf_stride + x;
-            EXPECT_EQ(C0_c[idx], C0_o[idx]);
-            EXPECT_EQ(D0_c[idx], D0_o[idx]);
-        }
-    }
-
-    printf("Average Nanoseconds per Function Call\n");
-    printf("    integral_images_highbd_c    : %6.2f\n",
-           1000000 * time_c / num_loop);
-    printf("    integral_images_highbd_avx2 : %6.2f   (Comparison: %5.2fx)\n",
-           1000000 * time_o / num_loop,
-           time_c / time_o);
-
-    uninit_data_integral_images(src8, src16);
-    eb_aom_free(buf_c);
-    eb_aom_free(buf_o);
-}
-#endif
+#endif /* ARCH_X86_64 */
 
 }  // namespace

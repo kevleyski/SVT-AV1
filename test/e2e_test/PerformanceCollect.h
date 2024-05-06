@@ -1,13 +1,14 @@
 /*
-* Copyright(c) 2019 Netflix, Inc.
-*
-* This source code is subject to the terms of the BSD 2 Clause License and
-* the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
-* was not distributed with this source code in the LICENSE file, you can
-* obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
-* Media Patent License 1.0 was not distributed with this source code in the
-* PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
-*/
+ * Copyright(c) 2019 Netflix, Inc.
+ *
+ * This source code is subject to the terms of the BSD 2 Clause License and
+ * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+ * was not distributed with this source code in the LICENSE file, you can
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
+ */
 
 /******************************************************************************
  * @file PerformanceCollect.h
@@ -35,11 +36,11 @@ class PerformanceCollect {
         uint64_t last_start_tick; /**< time tick of last start of counting */
         uint64_t count_ticks;     /**< time ticks sum of every counting */
         const std::string name;   /**< name of test item */
-        Collector(const std::string &name, const uint64_t unite_tick)
-            : name(name) {
-            init_tick = unite_tick ? unite_tick : get_time_tick();
-            last_start_tick = 0;
-            count_ticks = 0;
+        Collector(const std::string &n, const uint64_t unite_tick)
+            : init_tick(unite_tick ? unite_tick : get_time_tick()),
+              last_start_tick(0),
+              count_ticks(0),
+              name(n) {
         }
         /** tag_once() ends a counting of and save this perid of time in sum */
         void tag_once() {
@@ -57,11 +58,12 @@ class PerformanceCollect {
             uint64_t total_ticks = get_time_tick() - init_tick;
             std::string print =
                 "[" + name + "] cost: " + std::to_string(count_ticks) + "ms, ";
-            print += "usage: " +
-                     std::to_string(count_ticks * 100 / total_ticks) + "%\n";
+            print +=
+                "usage: " + std::to_string(count_ticks * 100 / total_ticks) +
+                "%\n";
             return print;
         }
-    } * CollectHandle;
+    } *CollectHandle;
 
   public:
     /** Constructor of PerformanceCollect

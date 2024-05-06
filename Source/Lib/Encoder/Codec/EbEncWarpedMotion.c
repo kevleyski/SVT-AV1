@@ -20,7 +20,7 @@
 #define WARP_ERROR_BLOCK 32
 
 /* clang-format off */
-const int error_measure_lut[512] = {
+const int svt_aom_error_measure_lut[512] = {
   // pow 0.7
   16384, 16339, 16294, 16249, 16204, 16158, 16113, 16068,
   16022, 15977, 15932, 15886, 15840, 15795, 15749, 15703,
@@ -89,75 +89,8 @@ const int error_measure_lut[512] = {
 };
 /* clang-format on */
 
-static INLINE int highbd_error_measure(int err, int bd) {
-    const int b     = bd - 8;
-    const int bmask = (1 << b) - 1;
-    const int v     = (1 << b);
-    err             = abs(err);
-    const int e1    = err >> b;
-    const int e2    = err & bmask;
-    return error_measure_lut[255 + e1] * (v - e2) + error_measure_lut[256 + e1] * e2;
-}
-
-static int64_t highbd_frame_error(const uint16_t *const ref, int stride, const uint16_t *const dst,
-                                  int p_width, int p_height, int p_stride, int bd) {
-    int64_t sum_error = 0;
-    for (int i = 0; i < p_height; ++i) {
-        for (int j = 0; j < p_width; ++j) {
-            sum_error += highbd_error_measure(dst[j + i * p_stride] - ref[j + i * stride], bd);
-        }
-    }
-    return sum_error;
-}
-
-static int64_t highbd_warp_error(EbWarpedMotionParams *wm, const uint8_t *const ref8, int width,
-                                 int height, int stride, const uint8_t *const dst8, int p_col,
-                                 int p_row, int p_width, int p_height, int p_stride,
-                                 int subsampling_x, int subsampling_y, int bd, int64_t best_error) {
-    int64_t   gm_sumerr     = 0;
-    const int error_bsize_w = AOMMIN(p_width, WARP_ERROR_BLOCK);
-    const int error_bsize_h = AOMMIN(p_height, WARP_ERROR_BLOCK);
-    uint16_t  tmp[WARP_ERROR_BLOCK * WARP_ERROR_BLOCK];
-
-    ConvolveParams conv_params   = get_conv_params(0, 0, 0, bd);
-    conv_params.use_jnt_comp_avg = 0;
-    for (int i = p_row; i < p_row + p_height; i += WARP_ERROR_BLOCK) {
-        for (int j = p_col; j < p_col + p_width; j += WARP_ERROR_BLOCK) {
-            // avoid warping extra 8x8 blocks in the padded region of the frame
-            // when p_width and p_height are not multiples of WARP_ERROR_BLOCK
-            const int warp_w = AOMMIN(error_bsize_w, p_col + p_width - j);
-            const int warp_h = AOMMIN(error_bsize_h, p_row + p_height - i);
-            eb_highbd_warp_plane(wm,
-                                 ref8,
-                                 width,
-                                 height,
-                                 stride,
-                                 CONVERT_TO_BYTEPTR(tmp),
-                                 j,
-                                 i,
-                                 warp_w,
-                                 warp_h,
-                                 WARP_ERROR_BLOCK,
-                                 subsampling_x,
-                                 subsampling_y,
-                                 bd,
-                                 &conv_params);
-
-            gm_sumerr += highbd_frame_error(tmp,
-                                            WARP_ERROR_BLOCK,
-                                            CONVERT_TO_SHORTPTR(dst8) + j + i * p_stride,
-                                            warp_w,
-                                            warp_h,
-                                            p_stride,
-                                            bd);
-            if (gm_sumerr > best_error) return gm_sumerr;
-        }
-    }
-    return gm_sumerr;
-}
-
-int64_t eb_av1_calc_frame_error_c(const uint8_t *const ref, int stride, const uint8_t *const dst,
-                                  int p_width, int p_height, int p_stride) {
+int64_t svt_av1_calc_frame_error_c(const uint8_t *const ref, int stride, const uint8_t *const dst, int p_width,
+                                   int p_height, int p_stride) {
     int64_t sum_error = 0;
     for (int i = 0; i < p_height; ++i) {
         for (int j = 0; j < p_width; ++j) {
@@ -167,10 +100,9 @@ int64_t eb_av1_calc_frame_error_c(const uint8_t *const ref, int stride, const ui
     return sum_error;
 }
 
-static int64_t warp_error(EbWarpedMotionParams *wm, const uint8_t *const ref, int width, int height,
-                          int stride, const uint8_t *const dst, int p_col, int p_row, int p_width,
-                          int p_height, int p_stride, int subsampling_x, int subsampling_y,
-                          int64_t best_error) {
+static int64_t warp_error(EbWarpedMotionParams *wm, const uint8_t *const ref, int width, int height, int stride,
+                          const uint8_t *const dst, int p_col, int p_row, int p_width, int p_height, int p_stride,
+                          int subsampling_x, int subsampling_y, uint8_t chess_refn, int64_t best_error) {
     int64_t        gm_sumerr = 0;
     int            warp_w, warp_h;
     int            error_bsize_w = AOMMIN(p_width, WARP_ERROR_BLOCK);
@@ -179,71 +111,56 @@ static int64_t warp_error(EbWarpedMotionParams *wm, const uint8_t *const ref, in
     ConvolveParams conv_params   = get_conv_params(0, 0, 0, 8);
     conv_params.use_jnt_comp_avg = 0;
 
+    int i_itr = 0;
     for (int i = p_row; i < p_row + p_height; i += WARP_ERROR_BLOCK) {
-        for (int j = p_col; j < p_col + p_width; j += WARP_ERROR_BLOCK) {
+        int jstart = (i_itr & 1) ? p_col : p_col + WARP_ERROR_BLOCK;
+        int jstep  = 2;
+
+        if (chess_refn == 0) {
+            jstart = p_col;
+            jstep  = 1;
+        }
+
+        for (int j = jstart; j < p_col + p_width; j += jstep * WARP_ERROR_BLOCK) {
             // avoid warping extra 8x8 blocks in the padded region of the frame
             // when p_width and p_height are not multiples of WARP_ERROR_BLOCK
             warp_w = AOMMIN(error_bsize_w, p_col + p_width - j);
             warp_h = AOMMIN(error_bsize_h, p_row + p_height - i);
-            eb_warp_plane(wm,
-                          ref,
-                          width,
-                          height,
-                          stride,
-                          tmp,
-                          j,
-                          i,
-                          warp_w,
-                          warp_h,
-                          WARP_ERROR_BLOCK,
-                          subsampling_x,
-                          subsampling_y,
-                          &conv_params);
+            svt_warp_plane(wm,
+                           ref,
+                           width,
+                           height,
+                           stride,
+                           tmp,
+                           j,
+                           i,
+                           warp_w,
+                           warp_h,
+                           WARP_ERROR_BLOCK,
+                           subsampling_x,
+                           subsampling_y,
+                           &conv_params);
 
-            gm_sumerr += eb_av1_calc_frame_error(
-                tmp, WARP_ERROR_BLOCK, dst + j + i * p_stride, warp_w, warp_h, p_stride);
-            if (gm_sumerr > best_error) return gm_sumerr;
+            gm_sumerr += svt_nxm_sad_kernel(tmp, WARP_ERROR_BLOCK, dst + j + i * p_stride, p_stride, warp_h, warp_w);
+
+            if (gm_sumerr > best_error)
+                return gm_sumerr;
         }
+
+        i_itr++;
     }
+
+    gm_sumerr = chess_refn ? gm_sumerr * 2 : gm_sumerr;
+
     return gm_sumerr;
 }
 
-int64_t eb_av1_frame_error(int use_hbd, int bd, const uint8_t *ref, int stride, uint8_t *dst,
-                           int p_width, int p_height, int p_stride) {
-    if (use_hbd) {
-        return highbd_frame_error(CONVERT_TO_SHORTPTR(ref),
-                                  stride,
-                                  CONVERT_TO_SHORTPTR(dst),
-                                  p_width,
-                                  p_height,
-                                  p_stride,
-                                  bd);
-    }
-    return eb_av1_calc_frame_error(ref, stride, dst, p_width, p_height, p_stride);
-}
-
-int64_t eb_av1_warp_error(EbWarpedMotionParams *wm, int use_hbd, int bd, const uint8_t *ref,
-                          int width, int height, int stride, uint8_t *dst, int p_col, int p_row,
-                          int p_width, int p_height, int p_stride, int subsampling_x,
-                          int subsampling_y, int64_t best_error) {
+int64_t svt_av1_warp_error(EbWarpedMotionParams *wm, const uint8_t *ref, int width, int height, int stride,
+                           uint8_t *dst, int p_col, int p_row, int p_width, int p_height, int p_stride,
+                           int subsampling_x, int subsampling_y, uint8_t chess_refn, int64_t best_error) {
     if (wm->wmtype <= AFFINE)
-        if (!eb_get_shear_params(wm)) return 1;
-    if (use_hbd)
-        return highbd_warp_error(wm,
-                                 ref,
-                                 width,
-                                 height,
-                                 stride,
-                                 dst,
-                                 p_col,
-                                 p_row,
-                                 p_width,
-                                 p_height,
-                                 p_stride,
-                                 subsampling_x,
-                                 subsampling_y,
-                                 bd,
-                                 best_error);
+        if (!svt_get_shear_params(wm))
+            return 1;
     return warp_error(wm,
                       ref,
                       width,
@@ -257,7 +174,6 @@ int64_t eb_av1_warp_error(EbWarpedMotionParams *wm, int use_hbd, int bd, const u
                       p_stride,
                       subsampling_x,
                       subsampling_y,
+                      chess_refn,
                       best_error);
 }
-
-

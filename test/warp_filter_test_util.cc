@@ -4,9 +4,10 @@
  * This source code is subject to the terms of the BSD 2 Clause License and
  * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
  * was not distributed with this source code in the LICENSE file, you can
- * obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
- * Media Patent License 1.0 was not distributed with this source code in the
- * PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
  */
 // workaround to eliminate the compiling warning on linux
 // The macro will conflict with definition in gtest.h
@@ -267,8 +268,7 @@ void AV1WarpFilterTest::RunCheckOutput(warp_affine_func test_impl) {
     ConvolveParams conv_params = get_conv_params(ref, 0, 0, bd);
     ConvBufType *dsta = new ConvBufType[output_n];
     ConvBufType *dstb = new ConvBufType[output_n];
-    for (i = 0; i < output_n; ++i)
-    {
+    for (i = 0; i < output_n; ++i) {
         output[i] = output2[i] = rnd_->Rand8();
         dsta[i] = dstb[i] = 0;
     }
@@ -315,24 +315,24 @@ void AV1WarpFilterTest::RunCheckOutput(warp_affine_func test_impl) {
                                 conv_params.bck_offset =
                                     quant_dist_lookup_table[ii][jj][1];
                             }
-                            eb_av1_warp_affine_c(mat,
-                                              input,
-                                              w,
-                                              h,
-                                              stride,
-                                              output,
-                                              32,
-                                              32,
-                                              out_w,
-                                              out_h,
-                                              out_w,
-                                              sub_x,
-                                              sub_y,
-                                              &conv_params,
-                                              alpha,
-                                              beta,
-                                              gamma,
-                                              delta);
+                            svt_av1_warp_affine_c(mat,
+                                                  input,
+                                                  w,
+                                                  h,
+                                                  stride,
+                                                  output,
+                                                  32,
+                                                  32,
+                                                  out_w,
+                                                  out_h,
+                                                  out_w,
+                                                  sub_x,
+                                                  sub_y,
+                                                  &conv_params,
+                                                  alpha,
+                                                  beta,
+                                                  gamma,
+                                                  delta);
                             if (use_no_round) {
                                 conv_params = get_conv_params_no_round(
                                     ref, do_average, 0, dstb, out_w, 1, bd);
@@ -439,7 +439,8 @@ void AV1HighbdWarpFilterTest::TearDown() {
 void AV1HighbdWarpFilterTest::RunSpeedTest(highbd_warp_affine_func test_impl) {
     const int w = 128, h = 128;
     const int border = 16;
-    const int stride = w + 2 * border;
+    const int stride8b = w + 2 * border;
+    const int stride2b = w + 2 * border;
     HighbdWarpTestParam param = TEST_GET_PARAM(0);
     const int is_alpha_zero = TEST_GET_PARAM(1);
     const int is_beta_zero = TEST_GET_PARAM(2);
@@ -455,8 +456,10 @@ void AV1HighbdWarpFilterTest::RunSpeedTest(highbd_warp_affine_func test_impl) {
     // So to avoid a buffer overflow, we may need to pad rows to a multiple
     // of 8.
     int output_n = ((out_w + 7) & ~7) * out_h;
-    uint16_t *input_ = new uint16_t[h * stride];
-    uint16_t *input = input_ + border;
+    uint8_t *input8b_ = new uint8_t[h * stride8b];
+    uint8_t *input8b = input8b_ + border;
+    uint8_t *input2b_ = new uint8_t[h * stride2b];
+    uint8_t *input2b = input2b_ + border;
     uint16_t *output = new uint16_t[output_n];
     int32_t mat[8];
     int16_t alpha, beta, gamma, delta;
@@ -475,12 +478,17 @@ void AV1HighbdWarpFilterTest::RunSpeedTest(highbd_warp_affine_func test_impl) {
                           is_delta_zero);
     // Generate an input block and extend its borders horizontally
     for (int r = 0; r < h; ++r)
-        for (int c = 0; c < w; ++c)
-            input[r * stride + c] = rnd_->Rand16() & mask;
+        for (int c = 0; c < w; ++c) {
+            uint16_t val = rnd_->Rand16() & mask;
+            input8b[r * stride8b + c] = val >> 2;
+            input2b[r * stride2b + c] = (val & 3) << 6;
+        }
     for (int r = 0; r < h; ++r) {
         for (int c = 0; c < border; ++c) {
-            input[r * stride - border + c] = input[r * stride];
-            input[r * stride + w + c] = input[r * stride + (w - 1)];
+            input8b[r * stride8b - border + c] = input8b[r * stride8b];
+            input8b[r * stride8b + w + c] = input8b[r * stride8b + (w - 1)];
+            input2b[r * stride2b - border + c] = input2b[r * stride2b];
+            input2b[r * stride2b + w + c] = input2b[r * stride2b + (w - 1)];
         }
     }
 
@@ -503,10 +511,12 @@ void AV1HighbdWarpFilterTest::RunSpeedTest(highbd_warp_affine_func test_impl) {
 
     for (int i = 0; i < num_loops; ++i)
         test_impl(mat,
-                  input,
+                  input8b,
+                  input2b,
                   w,
                   h,
-                  stride,
+                  stride8b,
+                  stride2b,
                   output,
                   32,
                   32,
@@ -532,25 +542,27 @@ void AV1HighbdWarpFilterTest::RunSpeedTest(highbd_warp_affine_func test_impl) {
     svt_av1_get_time(&start_time_seconds_ref, &start_time_useconds_ref);
 
     for (int i = 0; i < num_loops; ++i)
-        eb_av1_highbd_warp_affine_c(mat,
-                                    input,
-                                    w,
-                                    h,
-                                    stride,
-                                    output,
-                                    32,
-                                    32,
-                                    out_w,
-                                    out_h,
-                                    out_w,
-                                    sub_x,
-                                    sub_y,
-                                    bd,
-                                    &conv_params,
-                                    alpha,
-                                    beta,
-                                    gamma,
-                                    delta);
+        svt_av1_highbd_warp_affine_c(mat,
+                                     input8b,
+                                     input2b,
+                                     w,
+                                     h,
+                                     stride8b,
+                                     stride2b,
+                                     output,
+                                     32,
+                                     32,
+                                     out_w,
+                                     out_h,
+                                     out_w,
+                                     sub_x,
+                                     sub_y,
+                                     bd,
+                                     &conv_params,
+                                     alpha,
+                                     beta,
+                                     gamma,
+                                     delta);
 
     svt_av1_get_time(&finish_time_seconds_ref, &finish_time_useconds_ref);
     elapsed_time_ref =
@@ -564,7 +576,8 @@ void AV1HighbdWarpFilterTest::RunSpeedTest(highbd_warp_affine_func test_impl) {
            out_h,
            elapsed_time_ref / elapsed_time_tst);
 
-    delete[] input_;
+    delete[] input8b_;
+    delete[] input2b_;
     delete[] output;
     delete[] dsta;
 }
@@ -573,7 +586,8 @@ void AV1HighbdWarpFilterTest::RunCheckOutput(
     highbd_warp_affine_func test_impl) {
     const int w = 128, h = 128;
     const int border = 16;
-    const int stride = w + 2 * border;
+    const int stride8b = w + 2 * border;
+    const int stride2b = w + 2 * border;
     HighbdWarpTestParam param = TEST_GET_PARAM(0);
     const int is_alpha_zero = TEST_GET_PARAM(1);
     const int is_beta_zero = TEST_GET_PARAM(2);
@@ -590,8 +604,10 @@ void AV1HighbdWarpFilterTest::RunCheckOutput(
     // So to avoid a buffer overflow, we may need to pad rows to a multiple
     // of 8.
     int output_n = ((out_w + 7) & ~7) * out_h;
-    uint16_t *input_ = new uint16_t[h * stride];
-    uint16_t *input = input_ + border;
+    uint8_t *input8b_ = new uint8_t[h * stride8b];
+    uint8_t *input8b = input8b_ + border;
+    uint8_t *input2b_ = new uint8_t[h * stride2b];
+    uint8_t *input2b = input2b_ + border;
     uint16_t *output = new uint16_t[output_n];
     uint16_t *output2 = new uint16_t[output_n];
     int32_t mat[8];
@@ -599,8 +615,7 @@ void AV1HighbdWarpFilterTest::RunCheckOutput(
     ConvolveParams conv_params = get_conv_params(ref, 0, 0, bd);
     ConvBufType *dsta = new ConvBufType[output_n];
     ConvBufType *dstb = new ConvBufType[output_n];
-    for (i = 0; i < output_n; ++i)
-    {
+    for (i = 0; i < output_n; ++i) {
         output[i] = output2[i] = rnd_->Rand16();
         dsta[i] = dstb[i] = 0;
     }
@@ -608,12 +623,17 @@ void AV1HighbdWarpFilterTest::RunCheckOutput(
     for (i = 0; i < num_iters; ++i) {
         // Generate an input block and extend its borders horizontally
         for (int r = 0; r < h; ++r)
-            for (int c = 0; c < w; ++c)
-                input[r * stride + c] = rnd_->Rand16() & mask;
+            for (int c = 0; c < w; ++c) {
+                uint16_t val = rnd_->Rand16() & mask;
+                input8b[r * stride8b + c] = val >> 2;
+                input2b[r * stride2b + c] = (val & 3) << 6;
+            }
         for (int r = 0; r < h; ++r) {
             for (int c = 0; c < border; ++c) {
-                input[r * stride - border + c] = input[r * stride];
-                input[r * stride + w + c] = input[r * stride + (w - 1)];
+                input8b[r * stride8b - border + c] = input8b[r * stride8b];
+                input8b[r * stride8b + w + c] = input8b[r * stride8b + (w - 1)];
+                input2b[r * stride2b - border + c] = input2b[r * stride2b];
+                input2b[r * stride2b + w + c] = input2b[r * stride2b + (w - 1)];
             }
         }
         const int use_no_round = rnd_->Rand8() & 1;
@@ -649,25 +669,27 @@ void AV1HighbdWarpFilterTest::RunCheckOutput(
                                     quant_dist_lookup_table[ii][jj][1];
                             }
 
-                            eb_av1_highbd_warp_affine_c(mat,
-                                                     input,
-                                                     w,
-                                                     h,
-                                                     stride,
-                                                     output,
-                                                     32,
-                                                     32,
-                                                     out_w,
-                                                     out_h,
-                                                     out_w,
-                                                     sub_x,
-                                                     sub_y,
-                                                     bd,
-                                                     &conv_params,
-                                                     alpha,
-                                                     beta,
-                                                     gamma,
-                                                     delta);
+                            svt_av1_highbd_warp_affine_c(mat,
+                                                         input8b,
+                                                         input2b,
+                                                         w,
+                                                         h,
+                                                         stride8b,
+                                                         stride2b,
+                                                         output,
+                                                         32,
+                                                         32,
+                                                         out_w,
+                                                         out_h,
+                                                         out_w,
+                                                         sub_x,
+                                                         sub_y,
+                                                         bd,
+                                                         &conv_params,
+                                                         alpha,
+                                                         beta,
+                                                         gamma,
+                                                         delta);
                             if (use_no_round) {
                                 // TODO(angiebird): Change this to test_impl
                                 // once we have SIMD implementation
@@ -684,10 +706,12 @@ void AV1HighbdWarpFilterTest::RunCheckOutput(
                                     quant_dist_lookup_table[ii][jj][1];
                             }
                             test_impl(mat,
-                                      input,
+                                      input8b,
+                                      input2b,
                                       w,
                                       h,
-                                      stride,
+                                      stride8b,
+                                      stride2b,
                                       output2,
                                       32,
                                       32,
@@ -730,7 +754,8 @@ void AV1HighbdWarpFilterTest::RunCheckOutput(
             }
     }
 
-    delete[] input_;
+    delete[] input8b_;
+    delete[] input2b_;
     delete[] output;
     delete[] output2;
     delete[] dsta;

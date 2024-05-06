@@ -1,13 +1,14 @@
 /*
-* Copyright(c) 2019 Netflix, Inc.
-*
-* This source code is subject to the terms of the BSD 2 Clause License and
-* the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
-* was not distributed with this source code in the LICENSE file, you can
-* obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
-* Media Patent License 1.0 was not distributed with this source code in the
-* PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
-*/
+ * Copyright(c) 2019 Netflix, Inc.
+ *
+ * This source code is subject to the terms of the BSD 2 Clause License and
+ * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+ * was not distributed with this source code in the LICENSE file, you can
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
+ */
 
 /******************************************************************************
  * @file PictureOperatorTest.cc
@@ -40,14 +41,20 @@
 #include "random.h"
 #include "util.h"
 #include "common_dsp_rtcd.h"
+#include "aom_dsp_rtcd.h"
+#include "EbMotionEstimation.h"
 using svt_av1_test_tool::SVTRandom;  // to generate the random
 
 namespace {
 
 typedef enum { REF_MAX, SRC_MAX, RANDOM } TestPattern;
-TestPattern TEST_PATTERNS[] = {REF_MAX, SRC_MAX, RANDOM};
 
 typedef std::tuple<uint32_t, uint32_t> PUSize;
+
+#if defined(ARCH_X86_64)
+
+TestPattern TEST_PATTERNS[] = {REF_MAX, SRC_MAX, RANDOM};
+
 PUSize TEST_PU_SIZES[] = {
     PUSize(64, 64), PUSize(64, 32), PUSize(32, 64), PUSize(32, 32),
     PUSize(32, 16), PUSize(16, 32), PUSize(16, 16), PUSize(16, 8),
@@ -91,25 +98,25 @@ class PictureOperatorTest : public ::testing::Test,
         : pu_width_(std::get<0>(TEST_GET_PARAM(0))),
           pu_height_(std::get<1>(TEST_GET_PARAM(0))),
           test_pattern_(TEST_GET_PARAM(1)) {
-        tst_size = 2 * MAX_PU_SIZE * MAX_PU_SIZE;
-        tst_stride_ = 2 * MAX_PU_SIZE;
-        tst1_aligned_ = (uint8_t *)eb_aom_memalign(8, tst_size);
-        tst2_aligned_ = (uint8_t *)eb_aom_memalign(8, tst_size);
-        dst1_aligned_ = (uint8_t *)eb_aom_memalign(8, tst_size);
-        dst2_aligned_ = (uint8_t *)eb_aom_memalign(8, tst_size);
+        tst_size = 2 * 64 * 64;
+        tst_stride_ = 2 * 64;
+        tst1_aligned_ = (uint8_t *)svt_aom_memalign(8, tst_size);
+        tst2_aligned_ = (uint8_t *)svt_aom_memalign(8, tst_size);
+        dst1_aligned_ = (uint8_t *)svt_aom_memalign(8, tst_size);
+        dst2_aligned_ = (uint8_t *)svt_aom_memalign(8, tst_size);
         memset(dst1_aligned_, 0, tst_size * sizeof(dst1_aligned_[0]));
         memset(dst2_aligned_, 0, tst_size * sizeof(dst2_aligned_[0]));
     }
 
     void TearDown() override {
         if (tst1_aligned_)
-            eb_aom_free(tst1_aligned_);
+            svt_aom_free(tst1_aligned_);
         if (tst2_aligned_)
-            eb_aom_free(tst2_aligned_);
+            svt_aom_free(tst2_aligned_);
         if (dst1_aligned_)
-            eb_aom_free(dst1_aligned_);
+            svt_aom_free(dst1_aligned_);
         if (dst2_aligned_)
-            eb_aom_free(dst2_aligned_);
+            svt_aom_free(dst2_aligned_);
     }
 
   protected:
@@ -186,36 +193,6 @@ class PictureOperatorTest : public ::testing::Test,
             << " at func: [picture average 1line] ";
     }
 
-    void run_copy_test() {
-        prepare_data();
-        picture_copy_kernel_sse2(tst1_aligned_,
-                                 tst_stride_,
-                                 dst1_aligned_,
-                                 tst_stride_,
-                                 pu_width_,
-                                 pu_height_);
-        picture_copy_kernel(tst1_aligned_,
-                            tst_stride_,
-                            dst2_aligned_,
-                            tst_stride_,
-                            pu_width_,
-                            pu_height_,
-                            1);
-
-        int fail_pixel_count = 0;
-        for (uint16_t j = 0; j < pu_height_; j++) {
-            for (uint16_t k = 0; k < pu_width_; k++) {
-                if (dst1_aligned_[k + j * tst_stride_] !=
-                    dst2_aligned_[k + j * tst_stride_])
-                    fail_pixel_count++;
-            }
-        }
-        EXPECT_EQ(0, fail_pixel_count)
-            << "compare picture copy result error"
-            << "in pu for " << fail_pixel_count << "times,"
-            << " at func: [picture copy] ";
-    }
-
     int tst_size;
     uint32_t pu_width_, pu_height_;
     TestPattern test_pattern_;
@@ -228,12 +205,117 @@ TEST_P(PictureOperatorTest, AvgTest) {
     run_avg_test();
 };
 
-TEST_P(PictureOperatorTest, CopyTest) {
-    run_copy_test();
-};
-
 INSTANTIATE_TEST_CASE_P(PictureOperator, PictureOperatorTest,
                         ::testing::Combine(::testing::ValuesIn(TEST_PU_SIZES),
                                            ::testing::ValuesIn(TEST_PATTERNS)));
+
+#endif
+
+typedef void (*downsample_2d_fn)(uint8_t *input_samples, uint32_t input_stride,
+                                 uint32_t input_area_width,
+                                 uint32_t input_area_height,
+                                 uint8_t *decim_samples, uint32_t decim_stride,
+                                 uint32_t decim_step);
+uint32_t DECIM_STEPS[] = {2, 4, 8};
+PUSize DOWNSAMPLE_SIZES[] = {
+    PUSize(1920, 1080), PUSize(960, 540), PUSize(176, 144), PUSize(88, 72)};
+
+typedef std::tuple<PUSize, uint32_t, downsample_2d_fn> Downsample2DParam;
+
+class Downsample2DTest
+    : public ::testing::Test,
+      public ::testing::WithParamInterface<Downsample2DParam> {
+  public:
+    Downsample2DTest()
+        : pu_width(std::get<0>(TEST_GET_PARAM(0))),
+          pu_height(std::get<1>(TEST_GET_PARAM(0))),
+          decim_step(TEST_GET_PARAM(1)),
+          fn_ptr(TEST_GET_PARAM(2)) {
+        max_size = sizeof(uint8_t) * (1920 + 3) * (1080 + 3);
+        stride = pu_width + 3;
+        decim_stride = (pu_width / decim_step) + 3;
+        src_ptr = (uint8_t *)malloc(max_size);
+        dst_ref_ptr = (uint8_t *)malloc(max_size);
+        dst_tst_ptr = (uint8_t *)malloc(max_size);
+    }
+
+    void TearDown() override {
+        if (src_ptr)
+            free(src_ptr);
+        if (dst_ref_ptr)
+            free(dst_ref_ptr);
+        if (dst_tst_ptr)
+            free(dst_tst_ptr);
+    }
+
+  protected:
+    void prepare_data() {
+        const int32_t mask = (1 << 8) - 1;
+        SVTRandom rnd(0, mask);
+        for (int i = 0; i < max_size; i++) {
+            src_ptr[i] = rnd.random();
+        }
+        uint8_t val = rnd.random();
+        memset(dst_ref_ptr, val, max_size);
+        memset(dst_tst_ptr, val, max_size);
+    }
+
+    void run_test() {
+        prepare_data();
+        svt_aom_downsample_2d_c(src_ptr,
+                                stride,
+                                pu_width,
+                                pu_height,
+                                dst_ref_ptr,
+                                decim_stride,
+                                decim_step);
+
+        fn_ptr(src_ptr,
+               stride,
+               pu_width,
+               pu_height,
+               dst_tst_ptr,
+               decim_stride,
+               decim_step);
+
+        EXPECT_EQ(memcmp(dst_ref_ptr, dst_tst_ptr, max_size), 0);
+    }
+
+    int max_size;
+    uint32_t pu_width, pu_height;
+    uint32_t decim_step;
+    uint32_t decim_stride;
+    uint32_t stride;
+    uint8_t *src_ptr;
+    uint8_t *dst_ref_ptr, *dst_tst_ptr;
+    downsample_2d_fn fn_ptr;
+};
+
+TEST_P(Downsample2DTest, test) {
+    for (int i = 0; i < 20; i++) {
+        run_test();
+    }
+};
+
+#if defined(ARCH_X86_64)
+
+INSTANTIATE_TEST_CASE_P(
+    Downsample2D, Downsample2DTest,
+    ::testing::Combine(::testing::ValuesIn(DOWNSAMPLE_SIZES),
+                       ::testing::ValuesIn(DECIM_STEPS),
+                       ::testing::Values(svt_aom_downsample_2d_sse4_1,
+                                         svt_aom_downsample_2d_avx2)));
+
+#endif
+
+#if defined(ARCH_AARCH64)
+
+INSTANTIATE_TEST_CASE_P(
+    Downsample2D, Downsample2DTest,
+    ::testing::Combine(::testing::ValuesIn(DOWNSAMPLE_SIZES),
+                       ::testing::ValuesIn(DECIM_STEPS),
+                       ::testing::Values(svt_aom_downsample_2d_neon)));
+
+#endif
 
 }  // namespace

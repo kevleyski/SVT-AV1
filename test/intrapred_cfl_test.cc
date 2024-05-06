@@ -1,20 +1,21 @@
 /*
-* Copyright(c) 2019 Netflix, Inc.
-*
-* This source code is subject to the terms of the BSD 2 Clause License and
-* the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
-* was not distributed with this source code in the LICENSE file, you can
-* obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
-* Media Patent License 1.0 was not distributed with this source code in the
-* PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
-*/
+ * Copyright(c) 2019 Netflix, Inc.
+ *
+ * This source code is subject to the terms of the BSD 2 Clause License and
+ * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+ * was not distributed with this source code in the LICENSE file, you can
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
+ */
 
 /******************************************************************************
  * @file intrapred_edge_filter_test.cc
  *
  * @brief Unit test for chroma from luma prediction:
- * - eb_cfl_predict_hbd_avx2
- * - eb_cfl_predict_lbd_avx2
+ * - svt_cfl_predict_hbd_avx2
+ * - svt_cfl_predict_lbd_avx2
  * - svt_cfl_luma_subsampling_420_lbd_avx2
  * - svt_cfl_luma_subsampling_420_hbd_avx2
  *
@@ -40,8 +41,8 @@ using CFL_PRED_LBD = void (*)(const int16_t *pred_buf_q3, uint8_t *pred,
                               int32_t bit_depth, int32_t width, int32_t height);
 /**
  * @brief Unit test for chroma from luma prediction:
- * - eb_cfl_predict_hbd_avx2
- * - eb_cfl_predict_lbd_avx2
+ * - svt_cfl_predict_hbd_avx2
+ * - svt_cfl_predict_lbd_avx2
  *
  * Test strategy:
  * Verify this assembly code by comparing with reference c implementation.
@@ -154,8 +155,8 @@ class LbdCflPredTest : public CflPredTest<uint8_t, CFL_PRED_LBD> {
   public:
     LbdCflPredTest() {
         bd_ = 8;
-        ref_func_ = eb_cfl_predict_lbd_c;
-        tst_func_ = eb_cfl_predict_lbd_avx2;
+        ref_func_ = svt_cfl_predict_lbd_c;
+        tst_func_ = svt_cfl_predict_lbd_avx2;
         common_init();
     }
 };
@@ -164,8 +165,8 @@ class HbdCflPredTest : public CflPredTest<uint16_t, CFL_PRED_HBD> {
   public:
     HbdCflPredTest() {
         bd_ = 10;
-        ref_func_ = eb_cfl_predict_hbd_c;
-        tst_func_ = eb_cfl_predict_hbd_avx2;
+        ref_func_ = svt_cfl_predict_hbd_c;
+        tst_func_ = svt_cfl_predict_hbd_avx2;
         common_init();
     }
 };
@@ -184,7 +185,10 @@ typedef void (*AomUpsampledPredFunc)(MacroBlockD *,
                                      const struct AV1Common *const, int, int,
                                      const MV *const, uint8_t *, int, int, int,
                                      int, const uint8_t *, int, int);
-typedef ::testing::tuple<BlockSize, AomUpsampledPredFunc, int, int, int> AomUpsampledPredParam;
+
+typedef ::testing::tuple<BlockSize, AomUpsampledPredFunc, int, int, int,
+                         uint64_t>
+    AomUpsampledPredParam;
 
 class AomUpsampledPredTest
     : public ::testing::TestWithParam<AomUpsampledPredParam> {
@@ -212,14 +216,17 @@ class AomUpsampledPredTest
         memset(comp_pred_ref_, 1, sizeof(comp_pred_ref_));
         memset(comp_pred_tst_, 1, sizeof(comp_pred_tst_));
 
-        //Function svt_aom_upsampled_pred_sse2 call inside function pointer which have to be set properly
-        // by setup_common_rtcd_internal(), we want to test intrinsic version of it, so AVX2 flag is necessary
-        setup_common_rtcd_internal(CPU_FLAGS_AVX2);
+        // Function svt_aom_upsampled_pred_sse2 call inside function pointer
+        // which have to be set properly
+        // by svt_aom_setup_common_rtcd_internal(), we want to test intrinsic
+        // version of it, so AVX2 flag is necessary
+        uint64_t EbCpuFlags = TEST_GET_PARAM(5);
+        svt_aom_setup_common_rtcd_internal(EbCpuFlags);
 
         const int run_times = 100;
         for (int i = 0; i < run_times; ++i) {
             memset(ref_, 1, sizeof(ref_));
-            for (int j = 0; j < width * height+ 3 * width; j++) {
+            for (int j = 0; j < width * height + 3 * width; j++) {
                 ref_[j] = rnd_.random();
             }
 
@@ -269,12 +276,12 @@ INSTANTIATE_TEST_CASE_P(
     ::testing::Combine(::testing::Range(BLOCK_4X4, BlockSizeS_ALL),
                        ::testing::Values(svt_aom_upsampled_pred_sse2),
                        ::testing::Values(USE_2_TAPS, USE_4_TAPS, USE_8_TAPS),
-                       ::testing::Values(0, 1, 2),
-                       ::testing::Values(0, 1, 2)));
+                       ::testing::Values(0, 1, 2), ::testing::Values(0, 1, 2),
+                       ::testing::Values(EB_CPU_FLAGS_SSSE3,
+                                         EB_CPU_FLAGS_AVX2)));
 
-
-typedef void (*CflLumaSubsamplingLbdFunc)(const uint8_t *, int32_t, int16_t *, int32_t,
-                                   int32_t);
+typedef void (*CflLumaSubsamplingLbdFunc)(const uint8_t *, int32_t, int16_t *,
+                                          int32_t, int32_t);
 typedef ::testing::tuple<BlockSize, CflLumaSubsamplingLbdFunc>
     CflLumaSubsamplingLbdParam;
 
@@ -308,7 +315,6 @@ class CflLumaSubsamplingLbdTest
 
         const int run_times = 100;
         for (int i = 0; i < run_times; ++i) {
-
             memset(input, 1, sizeof(input));
             for (int j = 0; j < MAX_SB_SQUARE; j++) {
                 input[j] = rnd_.random();
@@ -322,7 +328,6 @@ class CflLumaSubsamplingLbdTest
             ASSERT_EQ(
                 0,
                 memcmp(output_q3_ref_, output_q3_tst_, sizeof(output_q3_ref_)));
-
         }
     }
 
@@ -336,9 +341,9 @@ TEST_P(CflLumaSubsamplingLbdTest, MatchTest) {
 
 INSTANTIATE_TEST_CASE_P(
     CFL_LUMA_SUBSAMPLING_LBD, CflLumaSubsamplingLbdTest,
-    ::testing::Combine(::testing::Range(BLOCK_4X4, BlockSizeS_ALL),
+    ::testing::Combine(
+        ::testing::Range(BLOCK_4X4, BlockSizeS_ALL),
         ::testing::Values(svt_cfl_luma_subsampling_420_lbd_avx2)));
-
 
 typedef void (*CflLumaSubsamplingHbdFunc)(const uint16_t *, int32_t, int16_t *,
                                           int32_t, int32_t);
@@ -401,7 +406,8 @@ TEST_P(CflLumaSubsamplingHbdTest, MatchTest) {
 
 INSTANTIATE_TEST_CASE_P(
     CFL_LUMA_SUBSAMPLING_HBD, CflLumaSubsamplingHbdTest,
-    ::testing::Combine(::testing::Range(BLOCK_4X4, BlockSizeS_ALL),
+    ::testing::Combine(
+        ::testing::Range(BLOCK_4X4, BlockSizeS_ALL),
         ::testing::Values(svt_cfl_luma_subsampling_420_hbd_avx2)));
 
 }  // namespace

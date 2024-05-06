@@ -1,20 +1,21 @@
 /*
-* Copyright(c) 2019 Netflix, Inc.
-*
-* This source code is subject to the terms of the BSD 2 Clause License and
-* the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
-* was not distributed with this source code in the LICENSE file, you can
-* obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
-* Media Patent License 1.0 was not distributed with this source code in the
-* PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
-*/
+ * Copyright(c) 2019 Netflix, Inc.
+ *
+ * This source code is subject to the terms of the BSD 2 Clause License and
+ * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+ * was not distributed with this source code in the LICENSE file, you can
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
+ */
 
 /******************************************************************************
  * @file PaletteModeUtilTest.cc
  *
  * @brief Unit test for util functions in palette mode:
- * - eb_av1_count_colors
- * - eb_av1_count_colors_highbd
+ * - svt_av1_count_colors
+ * - svt_av1_count_colors_highbd
  * - av1_k_means_dim1
  * - av1_k_means_dim2
  *
@@ -44,15 +45,16 @@ using svt_av1_test_tool::SVTRandom;
 
 namespace {
 
-extern "C" int eb_av1_count_colors(const uint8_t *src, int stride, int rows,
-                                   int cols, int *val_count);
-extern "C" int eb_av1_count_colors_highbd(uint16_t *src, int stride, int rows,
-                                          int cols, int bit_depth, int *val_count);
+extern "C" int svt_av1_count_colors(const uint8_t *src, int stride, int rows,
+                                    int cols, int *val_count);
+extern "C" int svt_av1_count_colors_highbd(uint16_t *src, int stride, int rows,
+                                           int cols, int bit_depth,
+                                           int *val_count);
 
 /**
  * @brief Unit test for counting colors:
- * - eb_av1_count_colors
- * - eb_av1_count_colors_highbd
+ * - svt_av1_count_colors
+ * - svt_av1_count_colors_highbd
  *
  * Test strategy:
  * Feeds the random value both into test function and the vector without
@@ -70,7 +72,7 @@ class ColorCountTest : public ::testing::Test {
   protected:
     ColorCountTest() : rnd_(16, false) {
         input_ =
-            (Sample *)eb_aom_memalign(32, MAX_PALETTE_SQUARE * sizeof(Sample));
+            (Sample *)svt_aom_memalign(32, MAX_PALETTE_SQUARE * sizeof(Sample));
         bd_ = 8;
         ref_.clear();
         val_count_ = nullptr;
@@ -78,7 +80,7 @@ class ColorCountTest : public ::testing::Test {
 
     ~ColorCountTest() {
         if (input_) {
-            eb_aom_free(input_);
+            svt_aom_free(input_);
             input_ = nullptr;
         }
         aom_clear_system_state();
@@ -101,14 +103,14 @@ class ColorCountTest : public ::testing::Test {
 
     void run_test(size_t times) {
         const int max_colors = (1 << bd_);
-        val_count_ = (int *)eb_aom_memalign(32, max_colors * sizeof(int));
+        val_count_ = (int *)svt_aom_memalign(32, max_colors * sizeof(int));
         for (size_t i = 0; i < times; i++) {
             prepare_data();
             ASSERT_EQ(count_color(), ref_.size())
                 << "color count failed at: " << i;
         }
         if (val_count_) {
-            eb_aom_free(val_count_);
+            svt_aom_free(val_count_);
             val_count_ = nullptr;
         }
     }
@@ -129,7 +131,7 @@ class ColorCountLbdTest : public ColorCountTest<uint8_t> {
         const int max_colors = (1 << bd_);
         memset(val_count_, 0, max_colors * sizeof(int));
         unsigned int colors =
-            (unsigned int)eb_av1_count_colors(input_, 64, 64, 64, val_count_);
+            (unsigned int)svt_av1_count_colors(input_, 64, 64, 64, val_count_);
         return colors;
     }
 };
@@ -143,7 +145,7 @@ class ColorCountHbdTest : public ColorCountTest<uint16_t> {
     unsigned int count_color() override {
         const int max_colors = (1 << bd_);
         memset(val_count_, 0, max_colors * sizeof(int));
-        unsigned int colors = (unsigned int)eb_av1_count_colors_highbd(
+        unsigned int colors = (unsigned int)svt_av1_count_colors_highbd(
             input_, 64, 64, 64, bd_, val_count_);
         return colors;
     }
@@ -164,10 +166,12 @@ TEST_F(ColorCountHbdTest, MatchTest12Bit) {
     run_test(1000);
 }
 
-extern "C" void av1_k_means_dim1_c(const int *data, int *centroids,
-                                 uint8_t *indices, int n, int k, int max_itr);
-extern "C" void av1_k_means_dim2_c(const int *data, int *centroids,
-                                 uint8_t *indices, int n, int k, int max_itr);
+extern "C" void svt_av1_k_means_dim1_c(const int *data, int *centroids,
+                                       uint8_t *indices, int n, int k,
+                                       int max_itr);
+extern "C" void svt_av1_k_means_dim2_c(const int *data, int *centroids,
+                                       uint8_t *indices, int n, int k,
+                                       int max_itr);
 static const int MaxItr = 50;
 /**
  * @brief Unit test for kmeans functions:
@@ -211,7 +215,7 @@ class KMeansTest : public ::testing::TestWithParam<int> {
             data_[i] = tmp[i] = palette[rnd_.random() % max_colors];
         delete[] palette;
         int val_count[MAX_PALETTE_SQUARE] = {0};
-        return eb_av1_count_colors(tmp, 64, 64, 64, val_count);
+        return svt_av1_count_colors(tmp, 64, 64, 64, val_count);
     }
 
     void run_test(size_t times) {
@@ -221,7 +225,7 @@ class KMeansTest : public ::testing::TestWithParam<int> {
             const int colors = prepare_data(max_colors);
             int centroids[PALETTE_MAX_SIZE] = {0};
             int k = AOMMIN(colors, k_);
-            av1_k_means_dim1_c(
+            svt_av1_k_means_dim1_c(
                 data_, centroids, indices, MAX_PALETTE_SQUARE, k, MaxItr);
             check_output(centroids, k, data_, indices, MAX_PALETTE_SQUARE);
         }
@@ -269,7 +273,7 @@ class KMeansTest : public ::testing::TestWithParam<int> {
             const int colors = prepare_data_2d(max_colors);
             int centroids[2 * PALETTE_MAX_SIZE] = {0};
             int k = AOMMIN(colors, k_);
-            av1_k_means_dim2_c(
+            svt_av1_k_means_dim2_c(
                 data_, centroids, indices, MAX_PALETTE_SQUARE, k, MaxItr);
             check_output_2d(centroids, k, data_, indices, MAX_PALETTE_SQUARE);
         }
@@ -319,9 +323,8 @@ TEST_P(KMeansTest, CheckOutput2D) {
 INSTANTIATE_TEST_CASE_P(PalleteMode, KMeansTest,
                         ::testing::Range(PALETTE_MIN_SIZE, PALETTE_MAX_SIZE));
 
-
 typedef void (*av1_k_means_func)(const int *data, int *centroids,
-                      uint8_t *indices, int n, int k, int max_itr);
+                                 uint8_t *indices, int n, int k, int max_itr);
 
 #define MAX_BLOCK_SIZE (MAX_SB_SIZE * MAX_SB_SIZE)
 typedef std::tuple<int, int> BlockSize;
@@ -343,43 +346,42 @@ BlockSize TEST_BLOCK_SIZES[] = {BlockSize(4, 4),
                                 BlockSize(128, 128)};
 TestPattern TEST_PATTERNS[] = {MIN, MAX, RANDOM};
 
-static void av1_calc_indices_dim1_c_wrap(const int *data, int *centroids,
-                                    uint8_t *indices, int n, int k,
-                                    int max_itr)
-{
+static void svt_av1_calc_indices_dim1_c_wrap(const int *data, int *centroids,
+                                             uint8_t *indices, int n, int k,
+                                             int max_itr) {
     (void)max_itr;
-    av1_calc_indices_dim1_c(data, centroids, indices, n, k);
+    svt_av1_calc_indices_dim1_c(data, centroids, indices, n, k);
 }
 
-static void av1_calc_indices_dim1_avx2_wrap(const int *data, int *centroids,
-                                    uint8_t *indices, int n, int k,
-                                    int max_itr)
-{
+static void svt_av1_calc_indices_dim1_avx2_wrap(const int *data, int *centroids,
+                                                uint8_t *indices, int n, int k,
+                                                int max_itr) {
     (void)max_itr;
-    av1_calc_indices_dim1_avx2(data, centroids, indices, n, k);
+    svt_av1_calc_indices_dim1_avx2(data, centroids, indices, n, k);
 }
 
-static void av1_calc_indices_dim2_c_wrap(const int *data, int *centroids,
-                                         uint8_t *indices, int n, int k,
-                                         int max_itr) {
+static void svt_av1_calc_indices_dim2_c_wrap(const int *data, int *centroids,
+                                             uint8_t *indices, int n, int k,
+                                             int max_itr) {
     (void)max_itr;
-    av1_calc_indices_dim2_c(data, centroids, indices, n, k);
+    svt_av1_calc_indices_dim2_c(data, centroids, indices, n, k);
 }
 
-static void av1_calc_indices_dim2_avx2_wrap(const int *data, int *centroids,
-                                            uint8_t *indices, int n, int k,
-                                            int max_itr) {
+static void svt_av1_calc_indices_dim2_avx2_wrap(const int *data, int *centroids,
+                                                uint8_t *indices, int n, int k,
+                                                int max_itr) {
     (void)max_itr;
-    av1_calc_indices_dim2_avx2(data, centroids, indices, n, k);
+    svt_av1_calc_indices_dim2_avx2(data, centroids, indices, n, k);
 }
 
 typedef std::tuple<av1_k_means_func, av1_k_means_func> FuncPair;
 FuncPair TEST_FUNC_PAIRS[] = {
-    FuncPair(av1_calc_indices_dim1_c_wrap, av1_calc_indices_dim1_avx2_wrap),
-    FuncPair(av1_k_means_dim1_c, av1_k_means_dim1_avx2),
-    FuncPair(av1_calc_indices_dim2_c_wrap, av1_calc_indices_dim2_avx2_wrap),
-    FuncPair(av1_k_means_dim2_c, av1_k_means_dim2_avx2)
-};
+    FuncPair(svt_av1_calc_indices_dim1_c_wrap,
+             svt_av1_calc_indices_dim1_avx2_wrap),
+    FuncPair(svt_av1_k_means_dim1_c, svt_av1_k_means_dim1_avx2),
+    FuncPair(svt_av1_calc_indices_dim2_c_wrap,
+             svt_av1_calc_indices_dim2_avx2_wrap),
+    FuncPair(svt_av1_k_means_dim2_c, svt_av1_k_means_dim2_avx2)};
 
 typedef std::tuple<TestPattern, BlockSize, FuncPair> Av1KMeansDimParam;
 

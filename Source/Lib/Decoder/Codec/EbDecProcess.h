@@ -22,7 +22,7 @@ extern "C" {
 
 #if MT_WAIT_PROFILE
 #if defined(_WIN32)
- /*
+/*
   * Win32 specific includes
   */
 #ifndef WIN32_LEAN_AND_MEAN
@@ -30,22 +30,22 @@ extern "C" {
 #endif
 #include <windows.h>
 #else
- /*
+/*
   * POSIX specific includes
   */
 #include <sys/time.h>
 
-  /* timersub is not provided by msys at this time. */
+/* timersub is not provided by msys at this time. */
 #ifndef timersub
-#define timersub(a, b, result)                       \
-  do {                                               \
-    (result)->tv_sec = (a)->tv_sec - (b)->tv_sec;    \
-    (result)->tv_usec = (a)->tv_usec - (b)->tv_usec; \
-    if ((result)->tv_usec < 0) {                     \
-      --(result)->tv_sec;                            \
-      (result)->tv_usec += 1000000;                  \
-    }                                                \
-  } while (0)
+#define timersub(a, b, result)                           \
+    do {                                                 \
+        (result)->tv_sec  = (a)->tv_sec - (b)->tv_sec;   \
+        (result)->tv_usec = (a)->tv_usec - (b)->tv_usec; \
+        if ((result)->tv_usec < 0) {                     \
+            --(result)->tv_sec;                          \
+            (result)->tv_usec += 1000000;                \
+        }                                                \
+    } while (0)
 #endif
 #endif
 
@@ -57,8 +57,8 @@ struct EbDecTimer {
 #endif
 };
 
-void dec_timer_start(struct EbDecTimer *t);
-void dec_timer_mark(struct EbDecTimer *t);
+void    dec_timer_start(struct EbDecTimer *t);
+void    dec_timer_mark(struct EbDecTimer *t);
 int64_t dec_timer_elapsed(struct EbDecTimer *t);
 #endif
 
@@ -85,10 +85,9 @@ typedef struct DecMtMotionProjInfo {
     /* Motion Projection row state context */
     int32_t motion_proj_row_to_process;
 
-    EbBool motion_proj_init_done;
+    Bool motion_proj_init_done;
 
 } DecMtMotionProjInfo;
-
 
 /* Stores the Queue & other related info needed between
    Parse and Recon for a Tile */
@@ -125,27 +124,27 @@ typedef struct DecMtParseReconTileInfo {
     /* SB row state context */
     int32_t sb_row_to_process;
 
-}DecMtParseReconTileInfo;
+} DecMtParseReconTileInfo;
 
 typedef struct DecMtRowInfo {
     /* Number of SB rows in Frame */
-    int32_t     num_sb_rows;
+    int32_t num_sb_rows;
 
     /* mutex handle for sb row assignment */
-    EbHandle    sbrow_mutex;
+    EbHandle sbrow_mutex;
 
     /* SB row state context */
-    int32_t     sb_row_to_process;
+    int32_t sb_row_to_process;
 } DecMtRowInfo;
 
 typedef struct DecMtlfFrameInfo {
     /* Flag to check lf_info initialization done or not.
        First thread entering LF stage should do the init */
-    EbBool lf_info_init_done;
+    Bool lf_info_init_done;
 
     /* Array to store SBs completed in every SB row of LF stage.
        Used for top sync */
-    int32_t    *sb_lf_completed_in_row;
+    int32_t     *sb_lf_completed_in_row;
     DecMtRowInfo lf_sb_row_info;
 } DecMtlfFrameInfo;
 
@@ -153,7 +152,7 @@ typedef struct DecMtlfFrameInfo {
 typedef struct PrevFrameMtCheck {
     /* Flag to indicate if the first
        frame header has been read */
-    EbBool frame_header_read;
+    Bool frame_header_read;
 
     /* Previous frame's height */
     uint16_t prev_max_frame_height;
@@ -170,18 +169,18 @@ typedef struct PrevFrameMtCheck {
 
 /* MT State information for each frame in parallel */
 typedef struct DecMTFrameData {
-    uint32_t            num_threads_cdefed;/*Should be Removed after PAD MT*/
-    uint32_t            num_threads_lred;/*Should be Removed after PAD MT*/
-    uint32_t            num_threads_exited;
-    EbBool              end_flag;
-    EbBool              start_motion_proj;
-    EbBool              start_parse_frame;
-    EbBool              start_decode_frame;
-    EbBool              start_lf_frame;
-    EbBool              start_cdef_frame;
-    EbBool              start_lr_frame;
+    uint32_t num_threads_cdefed; /*Should be Removed after PAD MT*/
+    uint32_t num_threads_lred; /*Should be Removed after PAD MT*/
+    uint32_t num_threads_exited;
+    Bool     end_flag;
+    Bool     start_motion_proj;
+    Bool     start_parse_frame;
+    Bool     start_decode_frame;
+    Bool     start_lf_frame;
+    Bool     start_cdef_frame;
+    Bool     start_lr_frame;
 
-    EbHandle            temp_mutex;
+    EbHandle temp_mutex;
 
     TilesInfo *tiles_info;
 
@@ -208,7 +207,7 @@ typedef struct DecMTFrameData {
     DecMtlfFrameInfo lf_frame_info;
 
     /* EbFifo at Frame Row level : CDEF Stage */
-    DecMtRowInfo            cdef_sb_row_info;
+    DecMtRowInfo cdef_sb_row_info;
 
     /* Array to store 64x64s completed in every 64x64 row of CDEF stage.
        Used for top-right sync */
@@ -218,24 +217,24 @@ typedef struct DecMTFrameData {
     int32_t     cdef_linebuf_stride;
     /* cdef map for every 64x64row+1 to track whether cdef is performed or not */
 
-    uint8_t                 *row_cdef_map;
+    uint8_t *row_cdef_map;
     /*cdef_map_stride is indicates no. of 64x64 block in a frame along
       col wise, it is used to allocate memory for row_cdef_map */
-    uint32_t                cdef_map_stride;
-    EbFifo                  *cdef_fifo_ptr;
+    uint32_t cdef_map_stride;
+    EbFifo  *cdef_fifo_ptr;
 
     /*It used to sync between cdef  and LR i.e ensures one
       complete cdef row done before LRF strats*/
-    uint32_t                *cdef_completed_for_row_map;
+    uint32_t *cdef_completed_for_row_map;
 
     /* EbFifo at Frame Row level : SR Stage */
-    EbFifo                  *sr_fifo_ptr;
-    DecMtRowInfo            lr_sb_row_info;
+    EbFifo      *sr_fifo_ptr;
+    DecMtRowInfo lr_sb_row_info;
     /* Array to store SBs completed in every SB row of LR stage.
        Used for top sync */
-    int32_t                 *sb_lr_completed_in_row;
+    int32_t *sb_lr_completed_in_row;
     /* LR SB row level map for rows finished LR */
-    uint32_t                *lr_row_map;
+    uint32_t *lr_row_map;
 
     PrevFrameMtCheck prev_frame_info;
 
@@ -243,7 +242,7 @@ typedef struct DecMTFrameData {
     int32_t sb_rows;
 
 #if MT_WAIT_PROFILE
-    FILE            *fp;
+    FILE *fp;
 #endif
 } DecMtFrameData;
 

@@ -14,14 +14,16 @@
 
 # Include Subdirectories
 include_directories(${PROJECT_SOURCE_DIR}/test/
-    ${CMAKE_OUTPUT_DIRECTORY}/
     ${PROJECT_SOURCE_DIR}/third_party/googletest/include
     ${PROJECT_SOURCE_DIR}/third_party/googletest/src
     ${PROJECT_SOURCE_DIR}/Source/API)
 
-file(GLOB all_files
-    "*.h"
-    "*.cc")
+set(all_files
+    SvtAv1EncApiTest.cc
+    SvtAv1EncApiTest.h
+    SvtAv1EncParamsTest.cc
+    params.h
+    )
 
 set(lib_list
     SvtAv1Enc
@@ -43,10 +45,6 @@ else()
         "${cxx_default}"
         "${lib_list}"
         ${all_files})
-
-    set_target_properties(SvtAv1ApiTests
-        PROPERTIES
-        COMPILE_DEFINITIONS "GTEST_LINKED_AS_SHARED_LIBRARY=1")
 endif()
 
 install(TARGETS SvtAv1ApiTests RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

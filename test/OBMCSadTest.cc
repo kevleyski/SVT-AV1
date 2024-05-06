@@ -1,13 +1,14 @@
 /*
-* Copyright(c) 2019 Netflix, Inc.
-*
-* This source code is subject to the terms of the BSD 2 Clause License and
-* the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
-* was not distributed with this source code in the LICENSE file, you can
-* obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
-* Media Patent License 1.0 was not distributed with this source code in the
-* PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
-*/
+ * Copyright(c) 2019 Netflix, Inc.
+ *
+ * This source code is subject to the terms of the BSD 2 Clause License and
+ * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+ * was not distributed with this source code in the LICENSE file, you can
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
+ */
 
 /******************************************************************************
  * @file OBMCsad_Test.cc
@@ -40,7 +41,7 @@ namespace {
 static const int MaskMax = 64;
 
 using Obmcsad_Func = uint32_t (*)(const uint8_t* pre, int pre_stride,
-                                 const int32_t* wsrc, const int32_t* mask);
+                                  const int32_t* wsrc, const int32_t* mask);
 using Obmcsad_Param = tuple<Obmcsad_Func, Obmcsad_Func>;
 
 class OBMCsad_Test : public ::testing::TestWithParam<Obmcsad_Param> {
@@ -50,20 +51,20 @@ class OBMCsad_Test : public ::testing::TestWithParam<Obmcsad_Param> {
           rnd_msk_(0, MaskMax * MaskMax + 1),
           func_ref_(TEST_GET_PARAM(0)),
           func_tst_(TEST_GET_PARAM(1)) {
-        pre_ = reinterpret_cast<uint8_t*>(eb_aom_memalign(32, MAX_SB_SQUARE));
+        pre_ = reinterpret_cast<uint8_t*>(svt_aom_memalign(32, MAX_SB_SQUARE));
         wsrc_buf_ = reinterpret_cast<int32_t*>(
-            eb_aom_memalign(32, MAX_SB_SQUARE * sizeof(int32_t)));
+            svt_aom_memalign(32, MAX_SB_SQUARE * sizeof(int32_t)));
         mask_buf_ = reinterpret_cast<int32_t*>(
-            eb_aom_memalign(32, MAX_SB_SQUARE * sizeof(int32_t)));
+            svt_aom_memalign(32, MAX_SB_SQUARE * sizeof(int32_t)));
     }
 
     ~OBMCsad_Test() {
         if (pre_)
-            eb_aom_free(pre_);
+            svt_aom_free(pre_);
         if (wsrc_buf_)
-            eb_aom_free(wsrc_buf_);
+            svt_aom_free(wsrc_buf_);
         if (mask_buf_)
-            eb_aom_free(mask_buf_);
+            svt_aom_free(mask_buf_);
     }
 
   protected:
@@ -98,8 +99,8 @@ TEST_P(OBMCsad_Test, RunCheckOutput) {
     run_test(1000);
 };
 
-#define OBMC_SAD_FUNC_C(W, H) eb_aom_obmc_sad##W##x##H##_c
-#define OBMC_SAD_FUNC_AVX2(W, H) eb_aom_obmc_sad##W##x##H##_avx2
+#define OBMC_SAD_FUNC_C(W, H) svt_aom_obmc_sad##W##x##H##_c
+#define OBMC_SAD_FUNC_AVX2(W, H) svt_aom_obmc_sad##W##x##H##_avx2
 #define GEN_OBMC_SAD_TEST_PARAM(W, H) \
     Obmcsad_Param(OBMC_SAD_FUNC_C(W, H), OBMC_SAD_FUNC_AVX2(W, H))
 #define GEN_TEST_PARAMS(GEN_PARAM)                                          \

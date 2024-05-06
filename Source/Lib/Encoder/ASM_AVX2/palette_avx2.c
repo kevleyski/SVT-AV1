@@ -21,8 +21,7 @@ static INLINE unsigned int lcg_rand16(unsigned int *state) {
 
 /* That same calculation as: av1_calc_indices_dist_dim1_avx2(),
    but not calculate sum at the end. */
-void av1_calc_indices_dim1_avx2(const int *data, const int *centroids, uint8_t *indices, int n,
-                                int k) {
+void svt_av1_calc_indices_dim1_avx2(const int *data, const int *centroids, uint8_t *indices, int n, int k) {
     int i = 0;
     int results[MAX_SB_SQUARE];
     memset(indices, 0, n * sizeof(uint8_t));
@@ -36,8 +35,8 @@ void av1_calc_indices_dim1_avx2(const int *data, const int *centroids, uint8_t *
     }
 
     for (int c = 1; c < k; c++) {
-        centroids_0 = _mm256_set1_epi32(centroids[c]);
-        __m256i indices_v   = _mm256_set1_epi32(c);
+        centroids_0       = _mm256_set1_epi32(centroids[c]);
+        __m256i indices_v = _mm256_set1_epi32(c);
         for (i = 0; i < n; i += 16) {
             __m256i data_d1 = _mm256_loadu_si256((__m256i *)(data + i));
             __m256i data_d2 = _mm256_loadu_si256((__m256i *)(data + i + 8));
@@ -73,14 +72,14 @@ void av1_calc_indices_dim1_avx2(const int *data, const int *centroids, uint8_t *
     }
 }
 
-static INLINE int64_t av1_calc_indices_dist_dim1_avx2(const int *data, const int *centroids,
-                                                      uint8_t *indices, int n, int k) {
+static INLINE int64_t av1_calc_indices_dist_dim1_avx2(const int *data, const int *centroids, uint8_t *indices,
+                                                      unsigned n, int k) {
     __m256i sum64 = _mm256_setzero_si256();
     int     results[MAX_SB_SQUARE];
     memset(indices, 0, n * sizeof(uint8_t));
 
     __m256i centroids_0 = _mm256_set1_epi32(centroids[0]);
-    for (int i = 0; i < n; i += 8) {
+    for (unsigned i = 0; i < n; i += 8) {
         __m256i data_dd = _mm256_loadu_si256((__m256i *)(data + i));
         __m256i sub     = _mm256_sub_epi32(data_dd, centroids_0);
         __m256i dist    = _mm256_mullo_epi32(sub, sub);
@@ -88,9 +87,9 @@ static INLINE int64_t av1_calc_indices_dist_dim1_avx2(const int *data, const int
     }
 
     for (int c = 1; c < k; c++) {
-        centroids_0 = _mm256_set1_epi32(centroids[c]);
-        __m256i indices_v   = _mm256_set1_epi32(c);
-        for (int i = 0; i < n; i += 16) {
+        centroids_0       = _mm256_set1_epi32(centroids[c]);
+        __m256i indices_v = _mm256_set1_epi32(c);
+        for (unsigned i = 0; i < n; i += 16) {
             __m256i data_d1 = _mm256_loadu_si256((__m256i *)(data + i));
             __m256i data_d2 = _mm256_loadu_si256((__m256i *)(data + i + 8));
             __m256i sub_1   = _mm256_sub_epi32(data_d1, centroids_0);
@@ -124,7 +123,7 @@ static INLINE int64_t av1_calc_indices_dist_dim1_avx2(const int *data, const int
         }
     }
 
-    for (int i = 0; i < n; i += 8) {
+    for (unsigned i = 0; i < n; i += 8) {
         __m256i prev = _mm256_loadu_si256((__m256i *)(results + i));
         sum64        = _mm256_add_epi64(sum64, _mm256_unpacklo_epi32(prev, _mm256_setzero_si256()));
         sum64        = _mm256_add_epi64(sum64, _mm256_unpackhi_epi32(prev, _mm256_setzero_si256()));
@@ -135,8 +134,7 @@ static INLINE int64_t av1_calc_indices_dist_dim1_avx2(const int *data, const int
     return _mm_extract_epi64(s, 0) + _mm_extract_epi64(s, 1);
 }
 
-static INLINE void calc_centroids_1_avx2(const int *data, int *centroids, const uint8_t *indices,
-                                         int n, int k) {
+static INLINE void calc_centroids_1_avx2(const int *data, int *centroids, const uint8_t *indices, int n, int k) {
     int          i;
     int          count[PALETTE_MAX_SIZE] = {0};
     unsigned int rand_state              = (unsigned int)data[0];
@@ -159,8 +157,7 @@ static INLINE void calc_centroids_1_avx2(const int *data, int *centroids, const 
     }
 }
 
-void av1_k_means_dim1_avx2(const int *data, int *centroids, uint8_t *indices, int n, int k,
-                           int max_itr) {
+void svt_av1_k_means_dim1_avx2(const int *data, int *centroids, uint8_t *indices, int n, int k, int max_itr) {
     int     pre_centroids[2 * PALETTE_MAX_SIZE];
     uint8_t pre_indices[MAX_SB_SQUARE];
     assert((n & 15) == 0);
@@ -169,25 +166,25 @@ void av1_k_means_dim1_avx2(const int *data, int *centroids, uint8_t *indices, in
 
     for (int i = 0; i < max_itr; ++i) {
         const int64_t pre_dist = this_dist;
-        eb_memcpy_intrin_sse(pre_centroids, centroids, sizeof(pre_centroids[0]) * k);
-        eb_memcpy_intrin_sse(pre_indices, indices, sizeof(pre_indices[0]) * n);
+        svt_memcpy_intrin_sse(pre_centroids, centroids, sizeof(pre_centroids[0]) * k);
+        svt_memcpy_intrin_sse(pre_indices, indices, sizeof(pre_indices[0]) * n);
 
         calc_centroids_1_avx2(data, centroids, indices, n, k);
         this_dist = av1_calc_indices_dist_dim1_avx2(data, centroids, indices, n, k);
 
         if (this_dist > pre_dist) {
-            eb_memcpy_intrin_sse(centroids, pre_centroids, sizeof(pre_centroids[0]) * k);
-            eb_memcpy_intrin_sse(indices, pre_indices, sizeof(pre_indices[0]) * n);
+            svt_memcpy_intrin_sse(centroids, pre_centroids, sizeof(pre_centroids[0]) * k);
+            svt_memcpy_intrin_sse(indices, pre_indices, sizeof(pre_indices[0]) * n);
             break;
         }
-        if (!memcmp(centroids, pre_centroids, sizeof(pre_centroids[0]) * k)) break;
+        if (!memcmp(centroids, pre_centroids, sizeof(pre_centroids[0]) * k))
+            break;
     }
 }
 
 /* That same calculation as: av1_calc_indices_dist_dim2_avx2(),
    but not calculate sum at the end. */
-void av1_calc_indices_dim2_avx2(const int *data, const int *centroids, uint8_t *indices, int n,
-                                int k) {
+void svt_av1_calc_indices_dim2_avx2(const int *data, const int *centroids, uint8_t *indices, int n, int k) {
     int results[MAX_SB_SQUARE];
     memset(indices, 0, n * sizeof(uint8_t));
 
@@ -208,8 +205,8 @@ void av1_calc_indices_dim2_avx2(const int *data, const int *centroids, uint8_t *
     }
 
     for (int j = 1; j < k; ++j) {
-        centroids_01 = _mm256_set1_epi64x(*((uint64_t *)&centroids[2 * j]));
-        __m256i indices_v    = _mm256_set1_epi32(j);
+        centroids_01      = _mm256_set1_epi64x(*((uint64_t *)&centroids[2 * j]));
+        __m256i indices_v = _mm256_set1_epi32(j);
 
         for (int i = 0; i < n; i += 16) {
             __m256i data_1 = _mm256_loadu_si256((__m256i *)(data + 2 * i));
@@ -258,14 +255,14 @@ void av1_calc_indices_dim2_avx2(const int *data, const int *centroids, uint8_t *
     }
 }
 
-static INLINE int64_t av1_calc_indices_dist_dim2_avx2(const int *data, const int *centroids,
-                                                      uint8_t *indices, int n, int k) {
+static INLINE int64_t av1_calc_indices_dist_dim2_avx2(const int *data, const int *centroids, uint8_t *indices,
+                                                      unsigned n, int k) {
     int results[MAX_SB_SQUARE];
     memset(indices, 0, n * sizeof(uint8_t));
 
     __m256i centroids_01 = _mm256_set1_epi64x(*((uint64_t *)&centroids[0]));
 
-    for (int i = 0; i < n; i += 8) {
+    for (unsigned i = 0; i < n; i += 8) {
         __m256i data_a = _mm256_loadu_si256((__m256i *)(data + 2 * i));
         __m256i sub_a  = _mm256_sub_epi32(data_a, centroids_01);
         __m256i dist_a = _mm256_mullo_epi32(sub_a, sub_a);
@@ -280,10 +277,10 @@ static INLINE int64_t av1_calc_indices_dist_dim2_avx2(const int *data, const int
     }
 
     for (int j = 1; j < k; ++j) {
-        centroids_01 = _mm256_set1_epi64x(*((uint64_t *)&centroids[2 * j]));
-        __m256i indices_v    = _mm256_set1_epi32(j);
+        centroids_01      = _mm256_set1_epi64x(*((uint64_t *)&centroids[2 * j]));
+        __m256i indices_v = _mm256_set1_epi32(j);
 
-        for (int i = 0; i < n; i += 16) {
+        for (unsigned i = 0; i < n; i += 16) {
             __m256i data_1 = _mm256_loadu_si256((__m256i *)(data + 2 * i));
             __m256i data_2 = _mm256_loadu_si256((__m256i *)(data + 2 * (i + 4)));
             __m256i data_3 = _mm256_loadu_si256((__m256i *)(data + 2 * (i + 8)));
@@ -331,7 +328,7 @@ static INLINE int64_t av1_calc_indices_dist_dim2_avx2(const int *data, const int
 
     int64_t dist  = 0;
     __m256i sum64 = _mm256_setzero_si256();
-    for (int i = 0; i < n; i += 8) {
+    for (unsigned i = 0; i < n; i += 8) {
         __m256i prev = _mm256_loadu_si256((__m256i *)(results + i));
         sum64        = _mm256_add_epi64(sum64, _mm256_unpacklo_epi32(prev, _mm256_setzero_si256()));
         sum64        = _mm256_add_epi64(sum64, _mm256_unpackhi_epi32(prev, _mm256_setzero_si256()));
@@ -343,8 +340,7 @@ static INLINE int64_t av1_calc_indices_dist_dim2_avx2(const int *data, const int
     return dist;
 }
 
-static INLINE void calc_centroids_2_avx2(const int *data, int *centroids, const uint8_t *indices,
-                                         int n, int k) {
+static INLINE void calc_centroids_2_avx2(const int *data, int *centroids, const uint8_t *indices, int n, int k) {
     int          i;
     int          count[PALETTE_MAX_SIZE] = {0};
     unsigned int rand_state              = (unsigned int)data[0];
@@ -361,9 +357,8 @@ static INLINE void calc_centroids_2_avx2(const int *data, int *centroids, const 
 
     for (i = 0; i < k; ++i) {
         if (count[i] == 0) {
-            eb_memcpy_intrin_sse(centroids + i * 2,
-                    (void*)(data + (lcg_rand16(&rand_state) % n) * 2),
-                   sizeof(centroids[0]) * 2);
+            svt_memcpy_intrin_sse(
+                centroids + i * 2, (void *)(data + (lcg_rand16(&rand_state) % n) * 2), sizeof(centroids[0]) * 2);
         } else {
             centroids[i * 2]     = DIVIDE_AND_ROUND(centroids[i * 2], count[i]);
             centroids[i * 2 + 1] = DIVIDE_AND_ROUND(centroids[i * 2 + 1], count[i]);
@@ -371,8 +366,7 @@ static INLINE void calc_centroids_2_avx2(const int *data, int *centroids, const 
     }
 }
 
-void av1_k_means_dim2_avx2(const int *data, int *centroids, uint8_t *indices, int n, int k,
-                           int max_itr) {
+void svt_av1_k_means_dim2_avx2(const int *data, int *centroids, uint8_t *indices, int n, int k, int max_itr) {
     int     pre_centroids[2 * PALETTE_MAX_SIZE];
     uint8_t pre_indices[MAX_SB_SQUARE];
 
@@ -382,17 +376,18 @@ void av1_k_means_dim2_avx2(const int *data, int *centroids, uint8_t *indices, in
 
     for (int i = 0; i < max_itr; ++i) {
         const int64_t pre_dist = this_dist;
-        eb_memcpy_intrin_sse(pre_centroids, centroids, sizeof(pre_centroids[0]) * k * 2);
-        eb_memcpy_intrin_sse(pre_indices, indices, sizeof(pre_indices[0]) * n);
+        svt_memcpy_intrin_sse(pre_centroids, centroids, sizeof(pre_centroids[0]) * k * 2);
+        svt_memcpy_intrin_sse(pre_indices, indices, sizeof(pre_indices[0]) * n);
 
         calc_centroids_2_avx2(data, centroids, indices, n, k);
         this_dist = av1_calc_indices_dist_dim2_avx2(data, centroids, indices, n, k);
 
         if (this_dist > pre_dist) {
-            eb_memcpy_intrin_sse(centroids, pre_centroids, sizeof(pre_centroids[0]) * k * 2);
-            eb_memcpy_intrin_sse(indices, pre_indices, sizeof(pre_indices[0]) * n);
+            svt_memcpy_intrin_sse(centroids, pre_centroids, sizeof(pre_centroids[0]) * k * 2);
+            svt_memcpy_intrin_sse(indices, pre_indices, sizeof(pre_indices[0]) * n);
             break;
         }
-        if (!memcmp(centroids, pre_centroids, sizeof(pre_centroids[0]) * k * 2)) break;
+        if (!memcmp(centroids, pre_centroids, sizeof(pre_centroids[0]) * k * 2))
+            break;
     }
 }

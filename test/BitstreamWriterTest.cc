@@ -1,13 +1,14 @@
 /*
  * Copyright(c) 2019 Netflix, Inc.
-*
-* This source code is subject to the terms of the BSD 2 Clause License and
-* the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
-* was not distributed with this source code in the LICENSE file, you can
-* obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
-* Media Patent License 1.0 was not distributed with this source code in the
-* PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
-*/
+ *
+ * This source code is subject to the terms of the BSD 2 Clause License and
+ * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+ * was not distributed with this source code in the LICENSE file, you can
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
+ */
 
 /******************************************************************************
  * @file BitstreamWriterTest.cc
@@ -24,9 +25,20 @@
 #if defined(CHAR_BIT)
 #undef CHAR_BIT  // defined in clang/9.1.0/include/limits.h
 #endif
+#include "EbDefinitions.h"
+#include "EbPictureBufferDesc.h"
+#include "EbDecHandle.h"
 #include "EbDecBitReader.h"
+#include "EbDecParseFrame.h"
 #include "gtest/gtest.h"
 #include "random.h"
+
+#ifdef max
+#undef max
+#endif
+#ifdef min
+#undef min
+#endif
 /**
  * @brief Unit test for Bitstream writer functions:
  * - aom_write
@@ -82,14 +94,18 @@ class BitstreamWriterTest : public ::testing::Test {
             for (int bit_gen_method = 0; bit_gen_method < 3; ++bit_gen_method) {
                 const int buffer_size = 10000;
                 AomWriter bw;
+                OutputBitstreamUnit output_bitstream_ptr;
                 uint8_t bw_buffer[buffer_size];
+                output_bitstream_ptr.buffer_av1 = bw_buffer;
+                output_bitstream_ptr.buffer_begin_av1 = bw_buffer;
+                output_bitstream_ptr.size = buffer_size;
                 uint8_t test_bits[total_bits];
 
                 // setup random bits 0/1
                 generate_random_bits(test_bits, total_bits, bit_gen_method);
 
                 // encode the bits
-                aom_start_encode(&bw, bw_buffer);
+                aom_start_encode(&bw, &output_bitstream_ptr);
                 for (int i = 0; i < total_bits; ++i) {
                     aom_write(&bw, test_bits[i], static_cast<int>(probas[i]));
                 }
@@ -97,7 +113,9 @@ class BitstreamWriterTest : public ::testing::Test {
 
                 // read out the bits and verify
                 SvtReader br;
-                svt_reader_init(&br, bw_buffer, bw.pos);
+                memset(&br, 0, sizeof(br));
+                init_svt_reader(
+                    &br, bw_buffer, bw_buffer + buffer_size, bw.pos, 0);
                 for (int i = 0; i < total_bits; ++i) {
                     GTEST_ASSERT_EQ(svt_read(&br, probas[i], nullptr),
                                     test_bits[i])
@@ -160,7 +178,10 @@ class BitstreamWriterTest : public ::testing::Test {
         // setup test bits
         switch (bit_gen_method) {
         case 0:
-        case 1: memset(test_bits, bit_gen_method, total_bits * sizeof(test_bits[0])); break;
+        case 1:
+            memset(
+                test_bits, bit_gen_method, total_bits * sizeof(test_bits[0]));
+            break;
         default:
             for (int i = 0; i < total_bits; ++i)
                 test_bits[i] = bit_dist(gen_);
@@ -185,16 +206,21 @@ TEST(Entropy_BitstreamWriter, write_literal_extreme_int) {
     constexpr int32_t min_int = std::numeric_limits<int32_t>::min();
 
     const int buffer_size = 1024;
+    OutputBitstreamUnit output_bitstream_ptr;
     uint8_t stream_buffer[buffer_size];
+    output_bitstream_ptr.buffer_av1 = stream_buffer;
+    output_bitstream_ptr.buffer_begin_av1 = stream_buffer;
+    output_bitstream_ptr.size = buffer_size;
     AomWriter bw;
 
-    aom_start_encode(&bw, stream_buffer);
+    aom_start_encode(&bw, &output_bitstream_ptr);
     aom_write_literal(&bw, max_int, 32);
     aom_write_literal(&bw, min_int, 32);
     aom_stop_encode(&bw);
 
     SvtReader br;
-    svt_reader_init(&br, stream_buffer, bw.pos);
+    memset(&br, 0, sizeof(br));
+    init_svt_reader(&br, stream_buffer, stream_buffer + buffer_size, bw.pos, 0);
     EXPECT_EQ(svt_read_literal(&br, 32, nullptr), max_int)
         << "read max_int fail";
     EXPECT_EQ(svt_read_literal(&br, 32, nullptr), min_int)
@@ -206,20 +232,23 @@ TEST(Entropy_BitstreamWriter, write_symbol_no_update) {
     memset(&bw, 0, sizeof(bw));
 
     const int buffer_size = 1024;
+    OutputBitstreamUnit output_bitstream_ptr;
     uint8_t stream_buffer[buffer_size];
-
+    output_bitstream_ptr.buffer_av1 = stream_buffer;
+    output_bitstream_ptr.buffer_begin_av1 = stream_buffer;
+    output_bitstream_ptr.size = buffer_size;
     // get default cdf
     const int base_qindex = 20;
     FRAME_CONTEXT fc;
     memset(&fc, 0, sizeof(fc));
-    eb_av1_default_coef_probs(&fc, base_qindex);
+    svt_av1_default_coef_probs(&fc, base_qindex);
 
     // write random bit sequences and expect read out
     // the same random sequences.
     std::bernoulli_distribution rnd(0.5);
     std::mt19937 gen(deterministic_seeds);
 
-    aom_start_encode(&bw, stream_buffer);
+    aom_start_encode(&bw, &output_bitstream_ptr);
     for (int i = 0; i < 500; ++i) {
         aom_write_symbol(&bw, rnd(gen), fc.txb_skip_cdf[0][0], 2);
         aom_write_symbol(&bw, rnd(gen), fc.txb_skip_cdf[0][0], 2);
@@ -231,7 +260,8 @@ TEST(Entropy_BitstreamWriter, write_symbol_no_update) {
     gen.seed(deterministic_seeds);
 
     SvtReader br;
-    svt_reader_init(&br, stream_buffer, bw.pos);
+    memset(&br, 0, sizeof(br));
+    init_svt_reader(&br, stream_buffer, stream_buffer + buffer_size, bw.pos, 0);
     for (int i = 0; i < 500; ++i) {
         ASSERT_EQ(svt_read_symbol(&br, fc.txb_skip_cdf[0][0], 2, nullptr),
                   rnd(gen));
@@ -245,7 +275,11 @@ TEST(Entropy_BitstreamWriter, write_symbol_with_update) {
     memset(&bw, 0, sizeof(bw));
 
     const int buffer_size = 1024;
+    OutputBitstreamUnit output_bitstream_ptr;
     uint8_t stream_buffer[buffer_size];
+    output_bitstream_ptr.buffer_av1 = stream_buffer;
+    output_bitstream_ptr.buffer_begin_av1 = stream_buffer;
+    output_bitstream_ptr.size = buffer_size;
     bw.allow_update_cdf = 1;
 
     // get default cdf
@@ -253,14 +287,14 @@ TEST(Entropy_BitstreamWriter, write_symbol_with_update) {
     FRAME_CONTEXT fc;
     memset(&fc, 0, sizeof(fc));
 
-    eb_av1_default_coef_probs(&fc, base_qindex);
+    svt_av1_default_coef_probs(&fc, base_qindex);
 
     // write random bit sequences and expect read out
     // the same random sequences.
     std::bernoulli_distribution rnd(0.5);
     std::mt19937 gen(deterministic_seeds);
 
-    aom_start_encode(&bw, stream_buffer);
+    aom_start_encode(&bw, &output_bitstream_ptr);
     for (int i = 0; i < 500; ++i) {
         aom_write_symbol(&bw, rnd(gen), fc.txb_skip_cdf[0][0], 2);
         aom_write_symbol(&bw, rnd(gen), fc.txb_skip_cdf[0][0], 2);
@@ -272,9 +306,9 @@ TEST(Entropy_BitstreamWriter, write_symbol_with_update) {
     gen.seed(deterministic_seeds);
 
     SvtReader br;
-    svt_reader_init(&br, stream_buffer, bw.pos);
-    br.allow_update_cdf = 1;
-    eb_av1_default_coef_probs(&fc, base_qindex);  // reset cdf
+    memset(&br, 0, sizeof(br));
+    init_svt_reader(&br, stream_buffer, stream_buffer + buffer_size, bw.pos, 1);
+    svt_av1_default_coef_probs(&fc, base_qindex);  // reset cdf
     for (int i = 0; i < 500; i++) {
         ASSERT_EQ(svt_read_symbol(&br, fc.txb_skip_cdf[0][0], 2, nullptr),
                   rnd(gen));

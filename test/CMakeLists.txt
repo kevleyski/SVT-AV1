@@ -14,7 +14,6 @@
 # Include Subdirectories
 include_directories(${PROJECT_SOURCE_DIR}/test/
     ${PROJECT_SOURCE_DIR}/test/ref
-    ${CMAKE_OUTPUT_DIRECTORY}/
     ${PROJECT_SOURCE_DIR}/third_party/googletest/include third_party/googletest/src
     ${PROJECT_SOURCE_DIR}/Source/API
     ${PROJECT_SOURCE_DIR}/Source/Lib/Common/Codec
@@ -24,12 +23,14 @@ include_directories(${PROJECT_SOURCE_DIR}/test/
     ${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_SSE4_1/
     ${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_AVX2/
     ${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_AVX512/
+    ${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_NEON/
     ${PROJECT_SOURCE_DIR}/Source/Lib/Encoder/C_DEFAULT/
     ${PROJECT_SOURCE_DIR}/Source/Lib/Encoder/ASM_SSE2/
     ${PROJECT_SOURCE_DIR}/Source/Lib/Encoder/ASM_SSSE3/
     ${PROJECT_SOURCE_DIR}/Source/Lib/Encoder/ASM_SSE4_1/
     ${PROJECT_SOURCE_DIR}/Source/Lib/Encoder/ASM_AVX2/
     ${PROJECT_SOURCE_DIR}/Source/Lib/Encoder/ASM_AVX512/
+    ${PROJECT_SOURCE_DIR}/Source/Lib/Encoder/ASM_NEON/
     ${PROJECT_SOURCE_DIR}/Source/Lib/Encoder/Codec
     ${PROJECT_SOURCE_DIR}/Source/Lib/Encoder/Globals
     ${PROJECT_SOURCE_DIR}/Source/Lib/Decoder/Codec
@@ -55,38 +56,144 @@ add_definitions(-D_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING=1)
 
 enable_testing()
 
-if(UNIX)
+if(UNIX AND HAVE_X86_PLATFORM)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mavx2")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2")
 endif()
 
-file(GLOB all_files
-    "*.h"
-    "*.c"
-    "*.cc"
-    "ref/*.h"
-    "ref/*.cc"
-    "../Source/Lib/Encoder/Codec/*.c"
-    "../Source/Lib/Decoder/Codec/EbDecBitReader.c"
-    "../Source/Lib/Decoder/Codec/EbDecBitstreamUnit.c")
+set(arch_neutral_files
+    BitstreamWriterTest.cc
+    EbUnitTest.h
+    EbUnitTestUtility.c
+    EbUnitTestUtility.h
+    FilmGrainExpectedResult.h
+    FilmGrainTest.cc
+    GlobalMotionUtilTest.cc
+    IntraBcUtilTest.cc
+    ResizeTest.cc
+    TestEnv.c
+    TxfmCommon.h
+    acm_random.h
+    random.h
+    util.h
+    ref/TxfmRef.cc
+    ref/TxfmRef.h
+    ssim_test.cc
+    # Decoder sources
+    ../Source/Lib/Decoder/Codec/EbDecBitstreamUnit.c
+    )
 
-set(lib_list
+set(multi_arch_files
+    FwdTxfm2dAsmTest.cc
+    InvTxfm2dAsmTest.cc
+    PictureOperatorTest.cc
+    SadTest.cc
+    selfguided_filter_test.cc
+    CdefTest.cc
+    SpatialFullDistortionTest.cc
+    TemporalFilterTestPlanewise.cc
+    convolve_2d_test.cc
+    RestorationPickTest.cc
+    )
+
+if(HAVE_X86_PLATFORM)
+    set(x86_arch_files
+        AdaptiveScanTest.cc
+        CompoundUtilTest.cc
+        DeblockTest.cc
+        EbNoiseModel_test.cc
+        EbBlend_a64_mask_1d_test.cc
+        EbBlend_a64_mask_test.cc
+        EbHighbdIntraPredictionTests.cc
+        EbHighbdIntraPredictionTests.h
+        EncodeTxbAsmTest.cc
+        FFTTest.cc
+        FilterIntraPredTest.cc
+        ForwardtransformTests.cc
+        FwdTxfm1dTest.cc
+        InvTxfm1dTest.cc
+        FwdTxfm2dTest.cc
+        HbdVarianceTest.cc
+        MotionEstimationTest.cc
+        OBMCSadTest.cc
+        OBMCVarianceTest.cc
+        PackUnPackTest.cc
+        PaletteModeUtilTest.cc
+        PsnrTest.cc
+        QuantAsmTest.cc
+        ResidualTest.cc
+        SelfGuidedUtilTest.cc
+        VarianceTest.cc
+        WedgeUtilTest.cc
+        av1_convolve_scale_test.cc
+        compute_mean_test.cc
+        corner_match_test.cc
+        dwt_test.cc
+        frame_error_test.cc
+        hadamard_test.cc
+        intrapred_cfl_test.cc
+        intrapred_dr_test.cc
+        intrapred_edge_filter_test.cc
+        intrapred_test.cc
+        quantize_func_test.cc
+        subtract_avg_cfl_test.cc
+        warp_filter_test.cc
+        warp_filter_test_util.cc
+        warp_filter_test_util.h
+        wiener_convolve_test.cc
+    )
+endif()
+
+if(HAVE_ARM_PLATFORM)
+    set(arm_arch_files
+    )
+endif()
+
+set(arch_neutral_lib_list
     $<TARGET_OBJECTS:COMMON_CODEC>
     $<TARGET_OBJECTS:FASTFEAT>
     $<TARGET_OBJECTS:COMMON_C_DEFAULT>
-    $<TARGET_OBJECTS:COMMON_ASM_SSE2>
-    $<TARGET_OBJECTS:COMMON_ASM_SSSE3>
-    $<TARGET_OBJECTS:COMMON_ASM_SSE4_1>
-    $<TARGET_OBJECTS:COMMON_ASM_AVX2>
-    $<TARGET_OBJECTS:COMMON_ASM_AVX512>
     $<TARGET_OBJECTS:ENCODER_C_DEFAULT>
-    $<TARGET_OBJECTS:ENCODER_ASM_SSE2>
-    $<TARGET_OBJECTS:ENCODER_ASM_SSSE3>
-    $<TARGET_OBJECTS:ENCODER_ASM_SSE4_1>
-    $<TARGET_OBJECTS:ENCODER_ASM_AVX2>
-    $<TARGET_OBJECTS:ENCODER_ASM_AVX512>
     $<TARGET_OBJECTS:ENCODER_GLOBALS>
+    $<TARGET_OBJECTS:ENCODER_CODEC>
     gtest_all)
+
+if(HAVE_X86_PLATFORM)
+    set(x86_arch_lib_list
+        $<TARGET_OBJECTS:COMMON_ASM_SSE2>
+        $<TARGET_OBJECTS:COMMON_ASM_SSSE3>
+        $<TARGET_OBJECTS:COMMON_ASM_SSE4_1>
+        $<TARGET_OBJECTS:COMMON_ASM_AVX2>
+        $<TARGET_OBJECTS:COMMON_ASM_AVX512>
+        $<TARGET_OBJECTS:ENCODER_ASM_SSE2>
+        $<TARGET_OBJECTS:ENCODER_ASM_SSSE3>
+        $<TARGET_OBJECTS:ENCODER_ASM_SSE4_1>
+        $<TARGET_OBJECTS:ENCODER_ASM_AVX2>
+        $<TARGET_OBJECTS:ENCODER_ASM_AVX512>
+        $<IF:$<BOOL:${USE_EXTERNAL_CPUINFO}>,cpuinfo::cpuinfo,cpuinfo_public>
+    )
+endif()
+
+if(HAVE_ARM_PLATFORM)
+    set(arm_arch_lib_list
+        $<TARGET_OBJECTS:COMMON_ASM_NEON>
+        $<TARGET_OBJECTS:ENCODER_ASM_NEON>
+    )
+endif()
+
+set(all_files
+    ${arch_neutral_files}
+    ${multi_arch_files}
+    ${x86_arch_files}
+    ${arm_arch_files}
+)
+
+set(lib_list
+    ${arch_neutral_lib_list}
+    ${x86_arch_lib_list}
+    ${arm_arch_lib_list}
+)
+
 if(UNIX)
   # App Source Files
     add_executable(SvtAv1UnitTests
@@ -101,10 +208,6 @@ else()
         "${cxx_default}"
         "${lib_list}"
         ${all_files})
-
-    set_target_properties(SvtAv1UnitTests
-        PROPERTIES
-        COMPILE_DEFINITIONS "GTEST_LINKED_AS_SHARED_LIBRARY=1")
 endif()
 
 add_dependencies(SvtAv1UnitTests SvtAv1Enc SvtAv1Dec)

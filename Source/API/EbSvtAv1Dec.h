@@ -9,7 +9,6 @@
 * PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
 */
 
-
 #ifndef EbSvtAv1Dec_h
 #define EbSvtAv1Dec_h
 
@@ -40,10 +39,10 @@ typedef struct EbAV1StreamInfo {
     EbColorConfig color_config;
 
     /* Film Grain Synthesis Present */
-    EbBool film_grain_params_present;
+    Bool film_grain_params_present;
 
     /* The stream is in annex_b format */
-    EbBool is_annex_b;
+    Bool is_annex_b;
 } EbAV1StreamInfo;
 
 typedef struct EbAV1FrameInfo {
@@ -71,7 +70,7 @@ typedef struct EbSvtAv1DecConfiguration {
     /* Skip film grain synthesis if it is present in the bitstream. Can be used for debugging purpose.
      *
      * Default is 0 */
-    EbBool skip_film_grain;
+    Bool skip_film_grain;
 
     /* Skip N output frames in the display order.
      *
@@ -97,7 +96,7 @@ typedef struct EbSvtAv1DecConfiguration {
      *
      * Default is 0. */
 
-    EbBool eight_bit_output;
+    Bool eight_bit_output;
 
     /* Picture parameters */
     uint32_t max_picture_width;
@@ -119,16 +118,28 @@ typedef struct EbSvtAv1DecConfiguration {
 
     // Application Specific parameters
 
-    /* ID assigned to each channel when multiple instances are running within the
-     * same application. */
+    /**
+     * @brief API signal for the library to know the channel ID (used for pinning to cores)
+     *
+     * Min value is 0
+     * Max value is 0xFFFFFFFF
+     * Default is 0
+     */
     uint32_t channel_id;
-    uint32_t active_channel_count;
 
+    /**
+     * @brief API signal for the library to know the active number of channels being encoded simultaneously
+     *
+     * Min value is 1
+     * Max value is 0xFFFFFFFF
+     * Default is 1
+     */
+    uint32_t active_channel_count;
     uint32_t stat_report;
     /* Decoder internal bit-depth is set to 16-bit even if the bitstream is 8-bit
  *
  * Default is 0. */
-    EbBool is_16bit_pipeline;
+    Bool is_16bit_pipeline;
 } EbSvtAv1DecConfiguration;
 
 /* STEP 1: Call the library to construct a Component Handle.
@@ -140,7 +151,7 @@ typedef struct EbSvtAv1DecConfiguration {
      * @ *config_ptr     Pointer passed back to the client during callbacks, it will be
      *                   loaded with default parameters from the library. */
 EB_API EbErrorType svt_av1_dec_init_handle(EbComponentType **p_handle, void *p_app_data,
-                                      EbSvtAv1DecConfiguration *config_ptr);
+                                           EbSvtAv1DecConfiguration *config_ptr);
 
 /* STEP 2: Set configuration parameters.
      *
@@ -149,8 +160,8 @@ EB_API EbErrorType svt_av1_dec_init_handle(EbComponentType **p_handle, void *p_a
      * @ *pComponentParameterStructure  Decoder and buffer configurations will be copied to the library. */
 EB_API EbErrorType svt_av1_dec_set_parameter(
     EbComponentType *svt_dec_component,
-    EbSvtAv1DecConfiguration *
-        pComponentParameterStructure); // pComponentParameterStructure contents will be copied to the library
+    EbSvtAv1DecConfiguration
+        *pComponentParameterStructure); // pComponentParameterStructure contents will be copied to the library
 
 /* STEP 3: Initialize decoder and allocate memory to necessary buffers.
      *
@@ -167,8 +178,8 @@ EB_API EbErrorType svt_av1_dec_init(EbComponentType *svt_dec_component);
      * @ data_size              Data size in bytes
      *
      *  Returns EB_ErrorNone if the coded data has been processed successfully. */
-EB_API EbErrorType svt_av1_dec_frame(EbComponentType *svt_dec_component, const uint8_t *data,
-                                       const size_t data_size, uint32_t is_annexb);
+EB_API EbErrorType svt_av1_dec_frame(EbComponentType *svt_dec_component, const uint8_t *data, const size_t data_size,
+                                     uint32_t is_annexb);
 
 /* STEP 5: Get the next decoded picture. When several output pictures
      * have been generated, calling this function multiple times will
@@ -185,9 +196,8 @@ EB_API EbErrorType svt_av1_dec_frame(EbComponentType *svt_dec_component, const u
      *  Returns EB_ErrorNone if the picture has been returned successfully.
      *  Returns EB_DecNoOutputPicture if the next output picture has not
      *  been generated yet. Calling a decoding function is needed to generate more pictures. */
-EB_API EbErrorType svt_av1_dec_get_picture(EbComponentType *   svt_dec_component,
-                                          EbBufferHeaderType *p_buffer,
-                                          EbAV1StreamInfo *stream_info, EbAV1FrameInfo *frame_info);
+EB_API EbErrorType svt_av1_dec_get_picture(EbComponentType *svt_dec_component, EbBufferHeaderType *p_buffer,
+                                           EbAV1StreamInfo *stream_info, EbAV1FrameInfo *frame_info);
 
 /* STEP 6: Deinitialize decoder library.
      *

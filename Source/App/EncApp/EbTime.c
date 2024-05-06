@@ -18,7 +18,11 @@
 
 #include <time.h>
 
-#if !defined(CLOCK_MONOTONIC) && !defined(_WIN32)
+#if defined(__MAC_OS_X_VERSION_MIN_REQUIRED) && (__MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_10_12)
+#define OLD_MACOS
+#endif
+
+#if !defined(CLOCK_MONOTONIC) && !defined(_WIN32) || defined(OLD_MACOS)
 #include <sys/time.h>
 #endif
 
@@ -34,10 +38,8 @@ void app_svt_av1_sleep(const unsigned milliseconds) {
 #endif
 }
 
-double app_svt_av1_compute_overall_elapsed_time(const uint64_t start_seconds,
-                                                const uint64_t start_useconds,
-                                                const uint64_t finish_seconds,
-                                                const uint64_t finish_useconds) {
+double app_svt_av1_compute_overall_elapsed_time(const uint64_t start_seconds, const uint64_t start_useconds,
+                                                const uint64_t finish_seconds, const uint64_t finish_useconds) {
     const int64_t s_diff = (int64_t)finish_seconds - (int64_t)start_seconds,
                   u_diff = (int64_t)finish_useconds - (int64_t)start_useconds;
     return ((double)s_diff * 1000.0 + (double)u_diff / 1000.0 + 0.5) / 1000.0;
@@ -48,8 +50,8 @@ void app_svt_av1_get_time(uint64_t *const seconds, uint64_t *const useconds) {
     struct _timeb curr_time;
     _ftime_s(&curr_time);
     *seconds  = curr_time.time;
-    *useconds = curr_time.millitm;
-#elif defined(CLOCK_MONOTONIC)
+    *useconds = curr_time.millitm * 1000;
+#elif defined(CLOCK_MONOTONIC) && !defined(OLD_MACOS)
     struct timespec curr_time;
     clock_gettime(CLOCK_MONOTONIC, &curr_time);
     *seconds  = (uint64_t)curr_time.tv_sec;

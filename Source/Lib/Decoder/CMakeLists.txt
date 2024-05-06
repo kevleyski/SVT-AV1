@@ -13,15 +13,22 @@
 # Shared Decoder Version
 set(DEC_VERSION_MAJOR 0)
 set(DEC_VERSION_MINOR 8)
-set(DEC_VERSION_PATCH 5)
+set(DEC_VERSION_PATCH 7)
 set(DEC_VERSION ${DEC_VERSION_MAJOR}.${DEC_VERSION_MINOR}.${DEC_VERSION_PATCH})
 
-if(UNIX)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Android")
+    find_library(M_LIB NAMES m)
+    if(M_LIB)
+        list(APPEND PLATFORM_LIBS m)
+    endif()
+    list(APPEND PLATFORM_LIBS Threads::Threads)
+elseif(UNIX)
     if(NOT APPLE)
-        find_library(M_LIB name m)
+        find_library(M_LIB NAMES m)
         if(M_LIB)
             list(APPEND PLATFORM_LIBS m)
         endif()
+        list(APPEND PLATFORM_LIBS Threads::Threads)
     endif()
     set(LIBS_PRIVATE "-lpthread -lm")
 endif()
@@ -45,7 +52,7 @@ link_directories(${PROJECT_SOURCE_DIR}/Source/Lib/Common/C_DEFAULT/
     ${PROJECT_SOURCE_DIR}/Source/Lib/Decoder/Codec/
     ${PROJECT_SOURCE_DIR}/third_party/fastfeat/)
 
-if(NOT COMPILE_C_ONLY AND X86)
+if(NOT COMPILE_C_ONLY AND HAVE_X86_PLATFORM)
     # Include Decoder Subdirectories
     include_directories(${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_SSE2/
         ${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_SSSE3/
@@ -58,6 +65,9 @@ if(NOT COMPILE_C_ONLY AND X86)
         ${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_SSE4_1/
         ${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_AVX2/
         ${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_AVX512/)
+elseif(NOT COMPILE_C_ONLY AND HAVE_ARM_PLATFORM)
+    include_directories(${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_NEON/)
+    link_directories(${PROJECT_SOURCE_DIR}/Source/Lib/Common/ASM_NEON/)
 endif()
 
 # Required for cmake to be able to tell Xcode how to link all of the object files
@@ -65,9 +75,56 @@ if(CMAKE_GENERATOR STREQUAL "Xcode")
     file(WRITE ${PROJECT_BINARY_DIR}/dummy.c "")
 endif()
 
-file(GLOB all_files
-    "Codec/*.h"
-    "Codec/*.c")
+set(all_files
+    Codec/EbDecBitReader.h
+    Codec/EbDecBitstream.c
+    Codec/EbDecBitstream.h
+    Codec/EbDecBitstreamUnit.c
+    Codec/EbDecBitstreamUnit.h
+    Codec/EbDecBlock.h
+    Codec/EbDecCdef.c
+    Codec/EbDecCdef.h
+    Codec/EbDecHandle.c
+    Codec/EbDecHandle.h
+    Codec/EbDecInterPrediction.c
+    Codec/EbDecInterPrediction.h
+    Codec/EbDecIntraPrediction.c
+    Codec/EbDecIntraPrediction.h
+    Codec/EbDecInverseQuantize.c
+    Codec/EbDecInverseQuantize.h
+    Codec/EbDecLF.c
+    Codec/EbDecLF.h
+    Codec/EbDecMemInit.c
+    Codec/EbDecMemInit.h
+    Codec/EbDecNbr.c
+    Codec/EbDecNbr.h
+    Codec/EbDecObmc.c
+    Codec/EbDecObmc.h
+    Codec/EbDecParseBlock.c
+    Codec/EbDecParseFrame.c
+    Codec/EbDecParseFrame.h
+    Codec/EbDecParseHelper.c
+    Codec/EbDecParseHelper.h
+    Codec/EbDecParseInterBlock.c
+    Codec/EbDecParseInterBlock.h
+    Codec/EbDecParseObu.c
+    Codec/EbDecParseObuUtil.h
+    Codec/EbDecPicMgr.c
+    Codec/EbDecPicMgr.h
+    Codec/EbDecProcess.c
+    Codec/EbDecProcess.h
+    Codec/EbDecProcessBlock.c
+    Codec/EbDecProcessBlock.h
+    Codec/EbDecProcessFrame.c
+    Codec/EbDecProcessFrame.h
+    Codec/EbDecRestoration.c
+    Codec/EbDecRestoration.h
+    Codec/EbDecStruct.h
+    Codec/EbDecSuperRes.c
+    Codec/EbDecUtils.c
+    Codec/EbDecUtils.h
+    Codec/EbObuParse.h
+    )
 
 get_target_property(common_lib_source common_lib INTERFACE_SOURCES)
 if(common_lib_source)
@@ -75,7 +132,7 @@ if(common_lib_source)
 endif()
 
 # Decoder Lib Source Files
-if(NOT COMPILE_C_ONLY AND X86)
+if(NOT COMPILE_C_ONLY AND HAVE_X86_PLATFORM)
     add_library(SvtAv1Dec
         ${all_files}
         $<TARGET_OBJECTS:COMMON_CODEC>
@@ -86,6 +143,13 @@ if(NOT COMPILE_C_ONLY AND X86)
         $<TARGET_OBJECTS:COMMON_ASM_SSE4_1>
         $<TARGET_OBJECTS:COMMON_ASM_AVX2>
         $<TARGET_OBJECTS:COMMON_ASM_AVX512>)
+elseif(NOT COMPILE_C_ONLY AND HAVE_ARM_PLATFORM)
+    add_library(SvtAv1Dec
+        ${all_files}
+        $<TARGET_OBJECTS:COMMON_CODEC>
+        $<TARGET_OBJECTS:FASTFEAT>
+        $<TARGET_OBJECTS:COMMON_C_DEFAULT>
+        $<TARGET_OBJECTS:COMMON_ASM_NEON>)
 else()
     add_library(SvtAv1Dec
         ${all_files}
@@ -96,9 +160,26 @@ endif()
 
 set_target_properties(SvtAv1Dec PROPERTIES VERSION ${DEC_VERSION})
 set_target_properties(SvtAv1Dec PROPERTIES SOVERSION ${DEC_VERSION_MAJOR})
+set_target_properties(SvtAv1Dec PROPERTIES C_VISIBILITY_PRESET hidden)
 add_dependencies(SvtAv1Dec EbVersionHeaderGen)
-target_link_libraries(SvtAv1Dec ${PLATFORM_LIBS})
-install(TARGETS SvtAv1Dec DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+target_link_libraries(SvtAv1Dec PUBLIC ${PLATFORM_LIBS})
+if(USE_EXTERNAL_CPUINFO)
+    target_link_libraries(SvtAv1Dec PRIVATE cpuinfo::cpuinfo)
+elseif(NOT COMPILE_C_ONLY AND HAVE_X86_PLATFORM)
+    target_link_libraries(SvtAv1Dec PRIVATE cpuinfo_public)
+endif()
+
+set(DEC_PKG_CONFIG_EXTRA_CFLAGS "")
+if (BUILD_SHARED_LIBS)
+    target_compile_definitions(SvtAv1Dec
+        PUBLIC EB_DLL
+        PRIVATE EB_BUILDING_SHARED_LIBS)
+    set(DEC_PKG_CONFIG_EXTRA_CFLAGS " -DEB_DLL")
+endif()
+install(TARGETS SvtAv1Dec
+        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
 configure_file(pkg-config.pc.in ${CMAKE_BINARY_DIR}/SvtAv1Dec.pc @ONLY)
 install(FILES ${CMAKE_BINARY_DIR}/SvtAv1Dec.pc DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}/pkgconfig")

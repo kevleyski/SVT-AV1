@@ -11,7 +11,7 @@
 
 #include "EbDefinitions.h"
 
-#ifndef NON_AVX512_SUPPORT
+#if EN_AVX512_SUPPORT
 
 #include <immintrin.h>
 #include "aom_dsp_rtcd.h"
@@ -19,8 +19,7 @@
 #include "EbMemory_AVX2.h"
 #include "synonyms_avx512.h"
 
-uint64_t svt_search_one_dual_avx512(int *lev0, int *lev1, int nb_strengths,
-                                    uint64_t (**mse)[TOTAL_STRENGTHS], int sb_count,
+uint64_t svt_search_one_dual_avx512(int *lev0, int *lev1, int nb_strengths, uint64_t **mse[2], int sb_count,
                                     int start_gi, int end_gi) {
     const int start        = start_gi & ~7;
     uint64_t  best_tot_mse = (uint64_t)1 << 63;
@@ -29,9 +28,7 @@ uint64_t svt_search_one_dual_avx512(int *lev0, int *lev1, int nb_strengths,
     int32_t   i, j;
     DECLARE_ALIGNED(64, uint64_t, tot_mse[TOTAL_STRENGTHS][TOTAL_STRENGTHS]);
 
-    memset(tot_mse + start_gi * TOTAL_STRENGTHS,
-           0,
-           sizeof(tot_mse[0][0]) * (end_gi - start_gi) * TOTAL_STRENGTHS);
+    memset(tot_mse + start_gi * TOTAL_STRENGTHS, 0, sizeof(tot_mse[0][0]) * (end_gi - start_gi) * TOTAL_STRENGTHS);
 
     for (i = 0; i < sb_count; i++) {
         int32_t  gi;
@@ -40,7 +37,8 @@ uint64_t svt_search_one_dual_avx512(int *lev0, int *lev1, int nb_strengths,
         for (gi = 0; gi < nb_strengths; gi++) {
             uint64_t curr = mse[0][i][lev0[gi]];
             curr += mse[1][i][lev1[gi]];
-            if (curr < best_mse) best_mse = curr;
+            if (curr < best_mse)
+                best_mse = curr;
         }
 
         const __m512i best_mse_ = _mm512_set1_epi64(best_mse);
@@ -78,4 +76,4 @@ uint64_t svt_search_one_dual_avx512(int *lev0, int *lev1, int nb_strengths,
     return best_tot_mse;
 }
 
-#endif // !NON_AVX512_SUPPORT
+#endif // EN_AVX512_SUPPORT

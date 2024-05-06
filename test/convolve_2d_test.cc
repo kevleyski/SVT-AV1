@@ -1,34 +1,35 @@
 /*
-* Copyright(c) 2019 Netflix, Inc.
-*
-* This source code is subject to the terms of the BSD 2 Clause License and
-* the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
-* was not distributed with this source code in the LICENSE file, you can
-* obtain it at https://www.aomedia.org/license/software-license. If the Alliance for Open
-* Media Patent License 1.0 was not distributed with this source code in the
-* PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
-*/
+ * Copyright(c) 2019 Netflix, Inc.
+ *
+ * This source code is subject to the terms of the BSD 2 Clause License and
+ * the Alliance for Open Media Patent License 1.0. If the BSD 2 Clause License
+ * was not distributed with this source code in the LICENSE file, you can
+ * obtain it at https://www.aomedia.org/license/software-license. If the
+ * Alliance for Open Media Patent License 1.0 was not distributed with this
+ * source code in the PATENTS file, you can obtain it at
+ * https://www.aomedia.org/license/patent-license.
+ */
 
 /******************************************************************************
  * @file Convolve2dTest.cc
  *
  * @brief Unit test for interpolation in inter prediction:
- * - eb_av1_highbd_convolve_2d_copy_sr_avx2
- * - eb_av1_highbd_jnt_convolve_2d_copy_avx2
- * - eb_av1_highbd_convolve_x_sr_avx2
- * - eb_av1_highbd_convolve_y_sr_avx2
- * - eb_av1_highbd_convolve_2d_sr_avx2
- * - eb_av1_highbd_jnt_convolve_x_avx2
- * - eb_av1_highbd_jnt_convolve_y_avx2
- * - eb_av1_highbd_jnt_convolve_2d_avx2
- * - eb_av1_convolve_2d_copy_sr_avx2
- * - eb_av1_jnt_convolve_2d_copy_avx2
- * - eb_av1_convolve_x_sr_avx2
- * - eb_av1_convolve_y_sr_avx2
- * - eb_av1_convolve_2d_sr_avx2
- * - eb_av1_jnt_convolve_x_avx2
- * - eb_av1_jnt_convolve_y_avx2
- * - eb_av1_jnt_convolve_2d_avx2
+ * - svt_av1_highbd_convolve_2d_copy_sr_avx2
+ * - svt_av1_highbd_jnt_convolve_2d_copy_avx2
+ * - svt_av1_highbd_convolve_x_sr_avx2
+ * - svt_av1_highbd_convolve_y_sr_avx2
+ * - svt_av1_highbd_convolve_2d_sr_avx2
+ * - svt_av1_highbd_jnt_convolve_x_avx2
+ * - svt_av1_highbd_jnt_convolve_y_avx2
+ * - svt_av1_highbd_jnt_convolve_2d_avx2
+ * - svt_av1_convolve_2d_copy_sr_avx2
+ * - svt_av1_jnt_convolve_2d_copy_avx2
+ * - svt_av1_convolve_x_sr_avx2
+ * - svt_av1_convolve_y_sr_avx2
+ * - svt_av1_convolve_2d_sr_avx2
+ * - svt_av1_jnt_convolve_x_avx2
+ * - svt_av1_jnt_convolve_y_avx2
+ * - svt_av1_jnt_convolve_2d_avx2
  *
  * @author Cidana-Wenyao
  *
@@ -42,8 +43,16 @@
 #include "EbTime.h"
 #include "EbUtility.h"
 #include "convolve.h"
-#include "convolve_avx2.h"
 #include "filter.h"
+
+#ifdef ARCH_X86_64
+#include "convolve_avx2.h"
+#endif  // ARCH_X86_64
+
+#ifdef ARCH_AARCH64
+#include "convolve_neon.h"
+#endif  // ARCH_AARCH64
+
 #if defined(_MSC_VER)
 #pragma warning(suppress : 4324)
 #endif
@@ -66,59 +75,84 @@ using lowbd_convolve_func = void (*)(const uint8_t *src, int src_stride,
                                      ConvolveParams *conv_params);
 
 static const lowbd_convolve_func lowbd_convolve_2d_sr_func_table[] = {
-    eb_av1_convolve_2d_sr_avx2,
-#ifndef NON_AVX512_SUPPORT
-    eb_av1_convolve_2d_sr_avx512
+#ifdef ARCH_X86_64
+    svt_av1_convolve_2d_sr_avx2,
+    svt_av1_convolve_2d_sr_sse2,
+#if EN_AVX512_SUPPORT
+    svt_av1_convolve_2d_sr_avx512
 #endif
+#endif  // ARCH_X86_64
 };
 
 static const lowbd_convolve_func lowbd_convolve_x_sr_func_table[] = {
-    eb_av1_convolve_x_sr_avx2,
-#ifndef NON_AVX512_SUPPORT
-    eb_av1_convolve_x_sr_avx512
+#ifdef ARCH_X86_64
+    svt_av1_convolve_x_sr_avx2,
+    svt_av1_convolve_x_sr_sse2,
+#if EN_AVX512_SUPPORT
+    svt_av1_convolve_x_sr_avx512
 #endif
+#endif  // ARCH_X86_64
 };
 
 static const lowbd_convolve_func lowbd_convolve_y_sr_func_table[] = {
-    eb_av1_convolve_y_sr_avx2,
-#ifndef NON_AVX512_SUPPORT
-    eb_av1_convolve_y_sr_avx512
+#ifdef ARCH_X86_64
+    svt_av1_convolve_y_sr_avx2,
+    svt_av1_convolve_y_sr_sse2,
+#if EN_AVX512_SUPPORT
+    svt_av1_convolve_y_sr_avx512
 #endif
+#endif  // ARCH_X86_64
 };
 
 static const lowbd_convolve_func lowbd_convolve_copy_sr_func_table[] = {
-    eb_av1_convolve_2d_copy_sr_avx2,
-#ifndef NON_AVX512_SUPPORT
-    eb_av1_convolve_2d_copy_sr_avx512
+#ifdef ARCH_X86_64
+    svt_av1_convolve_2d_copy_sr_avx2,
+    svt_av1_convolve_2d_copy_sr_sse2,
+#if EN_AVX512_SUPPORT
+    svt_av1_convolve_2d_copy_sr_avx512
 #endif
+#endif  // ARCH_X86_64
 };
 
 static const lowbd_convolve_func lowbd_jnt_convolve_2d_func_table[] = {
-    eb_av1_jnt_convolve_2d_avx2,
-#ifndef NON_AVX512_SUPPORT
-    eb_av1_jnt_convolve_2d_avx512
+#ifdef ARCH_X86_64
+    svt_av1_jnt_convolve_2d_avx2,
+    svt_av1_jnt_convolve_2d_sse2,
+    svt_av1_jnt_convolve_2d_ssse3,
+#if EN_AVX512_SUPPORT
+    svt_av1_jnt_convolve_2d_avx512
 #endif
+#endif  // ARCH_X86_64
 };
 
 static const lowbd_convolve_func lowbd_jnt_convolve_x_func_table[] = {
-    eb_av1_jnt_convolve_x_avx2,
-#ifndef NON_AVX512_SUPPORT
-    eb_av1_jnt_convolve_x_avx512
+#ifdef ARCH_X86_64
+    svt_av1_jnt_convolve_x_avx2,
+    svt_av1_jnt_convolve_x_sse2,
+#if EN_AVX512_SUPPORT
+    svt_av1_jnt_convolve_x_avx512
 #endif
+#endif  // ARCH_X86_64
 };
 
 static const lowbd_convolve_func lowbd_jnt_convolve_y_func_table[] = {
-    eb_av1_jnt_convolve_y_avx2,
-#ifndef NON_AVX512_SUPPORT
-    eb_av1_jnt_convolve_y_avx512
+#ifdef ARCH_X86_64
+    svt_av1_jnt_convolve_y_avx2,
+    svt_av1_jnt_convolve_y_sse2,
+#if EN_AVX512_SUPPORT
+    svt_av1_jnt_convolve_y_avx512
 #endif
+#endif  // ARCH_X86_64
 };
 
 static const lowbd_convolve_func lowbd_jnt_convolve_copy_func_table[] = {
-    eb_av1_jnt_convolve_2d_copy_avx2,
-#ifndef NON_AVX512_SUPPORT
-    eb_av1_jnt_convolve_2d_copy_avx512
+#ifdef ARCH_X86_64
+    svt_av1_jnt_convolve_2d_copy_avx2,
+    svt_av1_jnt_convolve_2d_copy_sse2,
+#if EN_AVX512_SUPPORT
+    svt_av1_jnt_convolve_2d_copy_avx512
 #endif
+#endif  // ARCH_X86_64
 };
 
 /**
@@ -153,29 +187,29 @@ class AV1Convolve2DTest : public ::testing::TestWithParam<Convolve2DParam> {
     virtual ~AV1Convolve2DTest() {
     }
 
-    // make the address algined to 32.
+    // make the address aligned to 32.
     void SetUp() override {
         conv_buf_init_ = reinterpret_cast<ConvBufType *>(
-            eb_aom_memalign(32, MAX_SB_SQUARE * sizeof(ConvBufType)));
+            svt_aom_memalign(32, MAX_SB_SQUARE * sizeof(ConvBufType)));
         conv_buf_ref_ = reinterpret_cast<ConvBufType *>(
-            eb_aom_memalign(32, MAX_SB_SQUARE * sizeof(ConvBufType)));
+            svt_aom_memalign(32, MAX_SB_SQUARE * sizeof(ConvBufType)));
         conv_buf_tst_ = reinterpret_cast<ConvBufType *>(
-            eb_aom_memalign(32, MAX_SB_SQUARE * sizeof(ConvBufType)));
+            svt_aom_memalign(32, MAX_SB_SQUARE * sizeof(ConvBufType)));
         output_init_ = reinterpret_cast<Sample *>(
-            eb_aom_memalign(32, MAX_SB_SQUARE * sizeof(Sample)));
+            svt_aom_memalign(32, MAX_SB_SQUARE * sizeof(Sample)));
         output_ref_ = reinterpret_cast<Sample *>(
-            eb_aom_memalign(32, MAX_SB_SQUARE * sizeof(Sample)));
+            svt_aom_memalign(32, MAX_SB_SQUARE * sizeof(Sample)));
         output_tst_ = reinterpret_cast<Sample *>(
-            eb_aom_memalign(32, MAX_SB_SQUARE * sizeof(Sample)));
+            svt_aom_memalign(32, MAX_SB_SQUARE * sizeof(Sample)));
     }
 
     void TearDown() override {
-        eb_aom_free(conv_buf_init_);
-        eb_aom_free(conv_buf_ref_);
-        eb_aom_free(conv_buf_tst_);
-        eb_aom_free(output_init_);
-        eb_aom_free(output_ref_);
-        eb_aom_free(output_tst_);
+        svt_aom_free(conv_buf_init_);
+        svt_aom_free(conv_buf_ref_);
+        svt_aom_free(conv_buf_tst_);
+        svt_aom_free(output_init_);
+        svt_aom_free(output_ref_);
+        svt_aom_free(output_tst_);
         aom_clear_system_state();
     }
 
@@ -428,7 +462,7 @@ class AV1Convolve2DTest : public ::testing::TestWithParam<Convolve2DParam> {
         // fill the input data with random
         prepare_data(input_w, input_h);
 
-        setup_common_rtcd_internal(get_cpu_flags_to_use());
+        svt_aom_setup_common_rtcd_internal(svt_aom_get_cpu_flags_to_use());
 
         // loop the filter type and subpixel position
         const int output_w = block_size_wide[block_idx];
@@ -760,11 +794,13 @@ class AV1LbdConvolve2DTest
     }
 };
 
+#ifdef ARCH_X86_64
+
 class AV1LbdJntConvolve2DTest : public AV1LbdConvolve2DTest {
   public:
     AV1LbdJntConvolve2DTest() {
         is_jnt_ = 1;
-        func_ref_ = eb_av1_jnt_convolve_2d_c;
+        func_ref_ = svt_av1_jnt_convolve_2d_c;
         const int has_subx = TEST_GET_PARAM(1);
         const int has_suby = TEST_GET_PARAM(2);
         const int func_idx = TEST_GET_PARAM(3);
@@ -790,6 +826,10 @@ TEST_P(AV1LbdJntConvolve2DTest, DISABLED_SpeedTest) {
     speed_test();
 }
 
+#endif  // ARCH_X86_64
+
+#ifdef ARCH_X86_64
+
 INSTANTIATE_TEST_CASE_P(ConvolveTestCOPY, AV1LbdJntConvolve2DTest,
                         BuildParams(0, 0, 0, 0));
 INSTANTIATE_TEST_CASE_P(ConvolveTestX, AV1LbdJntConvolve2DTest,
@@ -799,22 +839,36 @@ INSTANTIATE_TEST_CASE_P(ConvolveTestY, AV1LbdJntConvolve2DTest,
 INSTANTIATE_TEST_CASE_P(ConvolveTest2D, AV1LbdJntConvolve2DTest,
                         BuildParams(1, 1, 0, 0));
 
-#ifndef NON_AVX512_SUPPORT
-INSTANTIATE_TEST_CASE_P(ConvolveTestCOPY_AVX512, AV1LbdJntConvolve2DTest,
-                        BuildParams(0, 0, 1, 0));
-INSTANTIATE_TEST_CASE_P(ConvolveTestX_AVX512, AV1LbdJntConvolve2DTest,
-                        BuildParams(1, 0, 1, 0));
-INSTANTIATE_TEST_CASE_P(ConvolveTestY_AVX512, AV1LbdJntConvolve2DTest,
-                        BuildParams(0, 1, 1, 0));
-INSTANTIATE_TEST_CASE_P(ConvolveTest2D_AVX512, AV1LbdJntConvolve2DTest,
+INSTANTIATE_TEST_CASE_P(ConvolveTest2D_sse2, AV1LbdJntConvolve2DTest,
                         BuildParams(1, 1, 1, 0));
+INSTANTIATE_TEST_CASE_P(ConvolveTest2D_ssse3, AV1LbdJntConvolve2DTest,
+                        BuildParams(1, 1, 2, 0));
+INSTANTIATE_TEST_CASE_P(ConvolveTestX_sse2, AV1LbdJntConvolve2DTest,
+                        BuildParams(1, 0, 1, 0));
+INSTANTIATE_TEST_CASE_P(ConvolveTestY_sse2, AV1LbdJntConvolve2DTest,
+                        BuildParams(0, 1, 1, 0));
+INSTANTIATE_TEST_CASE_P(ConvolveTestCOPY_sse2, AV1LbdJntConvolve2DTest,
+                        BuildParams(0, 0, 1, 0));
+#if EN_AVX512_SUPPORT
+INSTANTIATE_TEST_CASE_P(ConvolveTestCOPY_AVX512, AV1LbdJntConvolve2DTest,
+                        BuildParams(0, 0, 2, 0));
+INSTANTIATE_TEST_CASE_P(ConvolveTestX_AVX512, AV1LbdJntConvolve2DTest,
+                        BuildParams(1, 0, 2, 0));
+INSTANTIATE_TEST_CASE_P(ConvolveTestY_AVX512, AV1LbdJntConvolve2DTest,
+                        BuildParams(0, 1, 2, 0));
+INSTANTIATE_TEST_CASE_P(ConvolveTest2D_AVX512, AV1LbdJntConvolve2DTest,
+                        BuildParams(1, 1, 3, 0));
 #endif
+
+#endif  // ARCH_X86_64
+
+#ifdef ARCH_X86_64
 
 class AV1LbdSrConvolve2DTest : public AV1LbdConvolve2DTest {
   public:
     AV1LbdSrConvolve2DTest() {
         is_jnt_ = 0;
-        func_ref_ = eb_av1_convolve_2d_sr_c;
+        func_ref_ = svt_av1_convolve_2d_sr_c;
         const int has_subx = TEST_GET_PARAM(1);
         const int has_suby = TEST_GET_PARAM(2);
         const int func_idx = TEST_GET_PARAM(3);
@@ -840,6 +894,10 @@ TEST_P(AV1LbdSrConvolve2DTest, DISABLED_SpeedTest) {
     speed_test();
 }
 
+#endif  // ARCH_X86_64
+
+#ifdef ARCH_X86_64
+
 INSTANTIATE_TEST_CASE_P(ConvolveTestCopy, AV1LbdSrConvolve2DTest,
                         BuildParams(0, 0, 0, 0));
 INSTANTIATE_TEST_CASE_P(ConvolveTestX, AV1LbdSrConvolve2DTest,
@@ -849,16 +907,26 @@ INSTANTIATE_TEST_CASE_P(ConvolveTestY, AV1LbdSrConvolve2DTest,
 INSTANTIATE_TEST_CASE_P(ConvolveTest2D, AV1LbdSrConvolve2DTest,
                         BuildParams(1, 1, 0, 0));
 
-#ifndef NON_AVX512_SUPPORT
-INSTANTIATE_TEST_CASE_P(ConvolveTestCopy_AVX512, AV1LbdSrConvolve2DTest,
-                        BuildParams(0, 0, 1, 0));
-INSTANTIATE_TEST_CASE_P(ConvolveTestX_AVX512, AV1LbdSrConvolve2DTest,
+INSTANTIATE_TEST_CASE_P(ConvolveTestX_SSE2, AV1LbdSrConvolve2DTest,
                         BuildParams(1, 0, 1, 0));
-INSTANTIATE_TEST_CASE_P(ConvolveTestY_AVX512, AV1LbdSrConvolve2DTest,
+INSTANTIATE_TEST_CASE_P(ConvolveTestY_SSE2, AV1LbdSrConvolve2DTest,
                         BuildParams(0, 1, 1, 0));
-INSTANTIATE_TEST_CASE_P(ConvolveTest2D_AVX512, AV1LbdSrConvolve2DTest,
+INSTANTIATE_TEST_CASE_P(ConvolveTest2D_SSE2, AV1LbdSrConvolve2DTest,
                         BuildParams(1, 1, 1, 0));
+INSTANTIATE_TEST_CASE_P(ConvolveTestCopy_SSE2, AV1LbdSrConvolve2DTest,
+                        BuildParams(0, 0, 1, 0));
+#if EN_AVX512_SUPPORT
+INSTANTIATE_TEST_CASE_P(ConvolveTestCopy_AVX512, AV1LbdSrConvolve2DTest,
+                        BuildParams(0, 0, 2, 0));
+INSTANTIATE_TEST_CASE_P(ConvolveTestX_AVX512, AV1LbdSrConvolve2DTest,
+                        BuildParams(1, 0, 2, 0));
+INSTANTIATE_TEST_CASE_P(ConvolveTestY_AVX512, AV1LbdSrConvolve2DTest,
+                        BuildParams(0, 1, 2, 0));
+INSTANTIATE_TEST_CASE_P(ConvolveTest2D_AVX512, AV1LbdSrConvolve2DTest,
+                        BuildParams(1, 1, 2, 0));
 #endif
+
+#endif  // ARCH_X86_64
 
 class AV1HbdConvolve2DTest
     : public AV1Convolve2DTest<uint16_t, highbd_convolve_func> {
@@ -967,20 +1035,52 @@ class AV1HbdJntConvolve2DTest : public AV1HbdConvolve2DTest {
   public:
     AV1HbdJntConvolve2DTest() {
         is_jnt_ = 1;
-        func_ref_ = eb_av1_highbd_jnt_convolve_2d_c;
+        func_ref_ = svt_av1_highbd_jnt_convolve_2d_c;
+
         const int has_subx = TEST_GET_PARAM(1);
         const int has_suby = TEST_GET_PARAM(2);
-        if (has_subx == 1 && has_suby == 1)
-            func_tst_ = eb_av1_highbd_jnt_convolve_2d_avx2;
-        else if (has_subx == 1)
-            func_tst_ = eb_av1_highbd_jnt_convolve_x_avx2;
-        else if (has_suby == 1)
-            func_tst_ = eb_av1_highbd_jnt_convolve_y_avx2;
-        else
-            func_tst_ = eb_av1_highbd_jnt_convolve_2d_copy_avx2;
+        const int fn_idx = TEST_GET_PARAM(3);
+
+#ifdef ARCH_X86_64
+        if (fn_idx == 0) {  // avx2
+            if (has_subx == 1 && has_suby == 1)
+                func_tst_ = svt_av1_highbd_jnt_convolve_2d_avx2;
+            else if (has_subx == 1)
+                func_tst_ = svt_av1_highbd_jnt_convolve_x_avx2;
+            else if (has_suby == 1)
+                func_tst_ = svt_av1_highbd_jnt_convolve_y_avx2;
+            else
+                func_tst_ = svt_av1_highbd_jnt_convolve_2d_copy_avx2;
+        }
+        if (fn_idx == 1) {  // SSE
+            if (has_subx == 1 && has_suby == 1)
+                func_tst_ = svt_av1_highbd_jnt_convolve_2d_sse4_1;
+            else if (has_subx == 1)
+                func_tst_ = svt_av1_highbd_jnt_convolve_x_sse4_1;
+            else if (has_suby == 1)
+                func_tst_ = svt_av1_highbd_jnt_convolve_y_sse4_1;
+            else
+                func_tst_ = svt_av1_highbd_jnt_convolve_2d_copy_sse4_1;
+        }
+#endif  // ARCH_X86_64
+
+#ifdef ARCH_AARCH64
+        if (fn_idx == 2) {  // NEON
+            if (has_subx == 1 && has_suby == 1) {
+                func_tst_ = svt_av1_highbd_jnt_convolve_2d_neon;
+            } else if (has_subx == 1) {
+                func_tst_ = func_ref_;  // not yet ported
+            } else if (has_suby == 1) {
+                func_tst_ = func_ref_;  // not yet ported
+            } else {
+                func_tst_ = func_ref_;  // not yet ported
+            }
+        }
+#endif  // ARCH_AARCH64
 
         bd_ = TEST_GET_PARAM(0);
     }
+
     virtual ~AV1HbdJntConvolve2DTest() {
     }
 };
@@ -993,6 +1093,17 @@ TEST_P(AV1HbdJntConvolve2DTest, DISABLED_SpeedTest) {
     speed_test();
 }
 
+#ifdef ARCH_X86_64
+
+INSTANTIATE_TEST_CASE_P(SSE41_COPY, AV1HbdJntConvolve2DTest,
+                        BuildParams(0, 0, 1, 1));
+INSTANTIATE_TEST_CASE_P(SSE41_ConvolveTest2D, AV1HbdJntConvolve2DTest,
+                        BuildParams(1, 1, 1, 1));
+INSTANTIATE_TEST_CASE_P(SSE41_ConvolveTestX, AV1HbdJntConvolve2DTest,
+                        BuildParams(1, 0, 1, 1));
+INSTANTIATE_TEST_CASE_P(SSE41_ConvolveTestY, AV1HbdJntConvolve2DTest,
+                        BuildParams(0, 1, 1, 1));
+
 INSTANTIATE_TEST_CASE_P(AVX2_COPY, AV1HbdJntConvolve2DTest,
                         BuildParams(0, 0, 0, 1));
 INSTANTIATE_TEST_CASE_P(ConvolveTest2D, AV1HbdJntConvolve2DTest,
@@ -1002,21 +1113,53 @@ INSTANTIATE_TEST_CASE_P(ConvolveTestX, AV1HbdJntConvolve2DTest,
 INSTANTIATE_TEST_CASE_P(ConvolveTestY, AV1HbdJntConvolve2DTest,
                         BuildParams(0, 1, 0, 1));
 
+#endif  // ARCH_X86_64
+
+#ifdef ARCH_AARCH64
+
+// not yet ported
+// INSTANTIATE_TEST_CASE_P(NEON_COPY, AV1HbdJntConvolve2DTest,
+//                         BuildParams(0, 0, 2, 1));
+INSTANTIATE_TEST_CASE_P(NEON_ConvolveTest2D, AV1HbdJntConvolve2DTest,
+                        BuildParams(1, 1, 2, 1));
+// not yet ported
+// INSTANTIATE_TEST_CASE_P(NEON_ConvolveTestX, AV1HbdJntConvolve2DTest,
+//                         BuildParams(1, 0, 2, 1));
+// not yet ported
+// INSTANTIATE_TEST_CASE_P(NEON_ConvolveTestY, AV1HbdJntConvolve2DTest,
+//                         BuildParams(0, 1, 2, 1));
+
+#endif  // ARCH_AARCH64
+
+#ifdef ARCH_X86_64
+
 class AV1HbdSrConvolve2DTest : public AV1HbdConvolve2DTest {
   public:
     AV1HbdSrConvolve2DTest() {
         is_jnt_ = 0;
-        func_ref_ = eb_av1_highbd_convolve_2d_sr_c;
+        func_ref_ = svt_av1_highbd_convolve_2d_sr_c;
         const int has_subx = TEST_GET_PARAM(1);
         const int has_suby = TEST_GET_PARAM(2);
-        if (has_subx == 1 && has_suby == 1)
-            func_tst_ = eb_av1_highbd_convolve_2d_sr_avx2;
-        else if (has_subx == 1)
-            func_tst_ = eb_av1_highbd_convolve_x_sr_avx2;
-        else if (has_suby == 1)
-            func_tst_ = eb_av1_highbd_convolve_y_sr_avx2;
-        else
-            func_tst_ = eb_av1_highbd_convolve_2d_copy_sr_avx2;
+        const int fn_idx = TEST_GET_PARAM(3);
+        if (fn_idx == 0) {  // avx2
+            if (has_subx == 1 && has_suby == 1)
+                func_tst_ = svt_av1_highbd_convolve_2d_sr_avx2;
+            else if (has_subx == 1)
+                func_tst_ = svt_av1_highbd_convolve_x_sr_avx2;
+            else if (has_suby == 1)
+                func_tst_ = svt_av1_highbd_convolve_y_sr_avx2;
+            else
+                func_tst_ = svt_av1_highbd_convolve_2d_copy_sr_avx2;
+        } else {  // SSE
+            if (has_subx == 1 && has_suby == 1)
+                func_tst_ = svt_av1_highbd_convolve_2d_sr_ssse3;
+            else if (has_subx == 1)
+                func_tst_ = svt_av1_highbd_convolve_x_sr_ssse3;
+            else if (has_suby == 1)
+                func_tst_ = svt_av1_highbd_convolve_y_sr_ssse3;
+            else
+                func_tst_ = svt_av1_highbd_convolve_2d_copy_sr_ssse3;
+        }
         bd_ = TEST_GET_PARAM(0);
     }
     virtual ~AV1HbdSrConvolve2DTest() {
@@ -1031,6 +1174,15 @@ TEST_P(AV1HbdSrConvolve2DTest, DISABLED_SpeedTest) {
     speed_test();
 }
 
+INSTANTIATE_TEST_CASE_P(SSS3E_ConvolveTestX, AV1HbdSrConvolve2DTest,
+                        BuildParams(1, 0, 1, 1));
+INSTANTIATE_TEST_CASE_P(SSS3E_ConvolveTest2D, AV1HbdSrConvolve2DTest,
+                        BuildParams(1, 1, 1, 1));
+INSTANTIATE_TEST_CASE_P(SSS3E_ConvolveTestY, AV1HbdSrConvolve2DTest,
+                        BuildParams(0, 1, 1, 1));
+INSTANTIATE_TEST_CASE_P(SSS3E_ConvolveTestCopy, AV1HbdSrConvolve2DTest,
+                        BuildParams(0, 0, 1, 1));
+
 INSTANTIATE_TEST_CASE_P(ConvolveTestX, AV1HbdSrConvolve2DTest,
                         BuildParams(1, 0, 0, 1));
 INSTANTIATE_TEST_CASE_P(ConvolveTest2D, AV1HbdSrConvolve2DTest,
@@ -1039,4 +1191,7 @@ INSTANTIATE_TEST_CASE_P(ConvolveTestY, AV1HbdSrConvolve2DTest,
                         BuildParams(0, 1, 0, 1));
 INSTANTIATE_TEST_CASE_P(ConvolveTestCopy, AV1HbdSrConvolve2DTest,
                         BuildParams(0, 0, 0, 1));
+
+#endif  // ARCH_X86_64
+
 }  // namespace

@@ -90,21 +90,19 @@ typedef struct LrCtxt {
 
     /* Flag to indicate if the access of buffers must be
        based on thread index or SB row index */
-    EbBool is_thread_min;
+    Bool is_thread_min;
 
 } LrCtxt;
 
+void svt_aom_decode_super_block(DecModCtxt *dec_mod_ctxt, uint32_t mi_row, uint32_t mi_col, SBInfo *sb_info);
 
-void decode_super_block(DecModCtxt *dec_mod_ctxt, uint32_t mi_row, uint32_t mi_col,
-                        SBInfo *sb_info);
-
-EbErrorType start_decode_tile(EbDecHandle *dec_handle_ptr, DecModCtxt *dec_mod_ctxt,
-                              TilesInfo *tiles_info, int32_t tile_num);
+EbErrorType svt_aom_start_decode_tile(EbDecHandle *dec_handle_ptr, DecModCtxt *dec_mod_ctxt, TilesInfo *tiles_info,
+                                      int32_t tile_num);
 EbErrorType decode_tile(DecModCtxt *dec_mod_ctxt, TilesInfo *tile_info,
                         DecMtParseReconTileInfo *parse_recon_tile_info_array, int32_t tile_col);
 
 /* TODO: Should be moved out once decode tile is moved out from parse_tile */
-void cfl_init(CflCtx *cfl, EbColorConfig *cc);
+void svt_cfl_init(CflCtx *cfl, EbColorConfig *cc);
 
 #ifdef __cplusplus
 }

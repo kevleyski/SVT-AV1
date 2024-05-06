@@ -1,4 +1,6 @@
-# Global Motion Compensation Appendix
+[Top level](../README.md)
+
+# Global Motion Compensation
 
 ## 1. Description of the algorithm
 
@@ -17,20 +19,24 @@ estimating global motion parameters based on the matched features.
 
 The general motion model is given by:
 
-![gm_math1](./img/gm_math1.png)
+$`\begin{bmatrix} x_r \\  y_r \\ 1 \\
+\end{bmatrix} = \begin{bmatrix} h_{11} & h_{12} & h_{13} \\  h_{21} & h_{22} &
+h_{23} \\ h_{31} & h_{32} & h_{33} \\
+\end{bmatrix} \begin{bmatrix} x \\  y \\ 1 \\
+\end{bmatrix}`$
 
-where ![gm_math2](./img/gm_math2.png) and ![gm_math3](./img/gm_math3.png) are the pixel coordinates in the current and reference
-frames, respectively. The supported motion models include:
+where $`\begin{bmatrix} x \\ y\end{bmatrix}`$  and $`\begin{bmatrix} x_r \\ y_r \end{bmatrix}`$ are the pixel coordinates in the
+current and reference
+frames respectively. The supported motion models include:
 
-  - Affine projection: ![gm_math4](./img/gm_math4.png). This
-    transformation preserves parallelism and has six parameters to
-    estimate.
+  - Affine projection: $`h_{31} = h_{32} = 0, h_{33}=1`$ . This
+    transformation preserves parallelism and has six parameters to estimate.
 
-  - Rotation-zoom projection: ![gm_math5](./img/gm_math5.png), which
+  - Rotation-zoom projection: $`h_{31} = h_{32} = 0, h_{33}=1; h_{11}=h_{22};h_{12}=-h_{21}`$, which
     corresponds rotation + scaling. This transformation preserves
     angles and has four parameters to estimate.
 
-  - Translation: ![gm_math6](./img/gm_math6.png) . This transformation
+  - Translation: $`h_{31} = h_{32} = 0, h_{33}=1; h_{11}=h_{22}=1;h_{12}=h_{21}=0`$. This transformation
     preserves orientation and size and has two parameters to estimate.
 
 The global motion estimation involves two main steps. The first step
@@ -95,39 +101,45 @@ algorithm are as follows:
     threshold.
 
 
-## 2.  Implementation of the algorithm
+## 2. Implementation of the algorithm
 
-**Input to motion\_estimation\_kernel**: Input frames of the stream.
+### 2.1. Global Motion inputs/outputs
 
-**Outputs of motion\_estimation\_kernel**: Estimated global motion
-models per frame with their references.
+**Input to Motion Estimation**: Input frames of the stream.
+**Outputs of Motion Estimation**: Estimated global motion models per frame with their references.
+**Input to Mode Decision**: Estimated global motion models.
+**Outputs of Mode Decision**: Encoded frame with global motion encoded blocks if they provide a cost advantage.
 
-**Input to enc\_dec\_kernel**: Estimated global motion models.
+### 2.2 Global Motion API
 
-**Outputs of enc\_dec\_kernel**: Encoded frame with global motion
-encoded blocks if they provide a cost advantage.
+Table 1 below summarises the invoked functions when global motion is enabled.
+The process where each function is invoked is also indicated as well as a brief
+description of each function.
 
-**Control macros/flags**:
+##### Table 1. Global motion estimation API.
 
-
-##### Table 1. Control flags associated with global motion compensation.
-
-|Flag|Level (Sequence/Picture)|Description|
-|--- |--- |--- |
-|GLOBAL_WARPED_MOTION|Compilation time macro|Macro to enable global warped motion estimation and mode insertion. When disabled, it restores the previous global motion implementation which only supports the TRANSLATION mode.|
-|compute_global_motion|Sequence|Controls whether global motion parameters should be computed.|
-|global_mv_injection|Sequence|Controls whether global motion candidates should be estimated.|
+| **Process**                         | **Function**             | **Purpose**                                                                                                                                    |
+| ---                                 | ---                      | ---                                                                                                                                            |
+| Picture Decision Process            | svt_aom_set_gm_controls  | Set global motion controls                                                                                                                     |
+| Motion Estimation Process           | perform_gm_detection     | Detect whether a global motion may be identified based on the uniformity of the motion vectors produced by the normal motion estimation search |
+| Motion Estimation Process           | svt_aom_global_motion_estimation | Perform global motion estimation search                                                                                                |
+| Mode Decision Configuration process | set_global_motion_field  | Map the global motion information generated in EbMotionEstimationProcess to EbEncDecProcess                                                    |
+| Mode Decision Process               | inject_global_candidates | Inject global motion as a mode candidate to the mode decision                                                                                  |
 
 ### Details of the implementation
 
-The global motion tool consists of two parts, namely global motion
-estimation and mode decision.
-
-#### Global motion estimation
+The global motion data flow is summarized in the Figure 2 below.
 
 ![gm_fig2](./img/gm_fig2.png)
 
-##### Figure 2. Main function calls associated with global motion estimation.
+##### Figure 2. Global motion data flow in the encoder pipeline.
+
+The main algorithmic components of the global motion feature are the estimation
+component which takes place in the motion estimation process, and the injection
+and processing component which takes place in the Mode Decision
+process(injection and processing).
+
+### Global motion estimation
 
 This process is executed by the ```global_motion_estimation``` function. This function
 is called only for the first segment of each frame in the ```motion_estimation_kernel```
@@ -143,7 +155,7 @@ from the function ```svt_av1_compute_global_motion``` to determine the features 
 Once the features have been extracted, they are matched. This is done in the
 ```svt_av1_determine_correspondence``` function by two nested loops over the features of the
 reference frame and the current frame. A current frame feature is matched to a reference
-frame feature that maximizes their cross-correlation computed by ```eb_av1_compute_cross_correlation_c```.
+frame feature that maximizes their cross-correlation computed by ```svt_av1_compute_cross_correlation_c```.
 However, the match is kept only if the cross-correlation is superior to the ```THRESHOLD_NCC```
 threshold multiplied by the variance of the current feature patch.
 
@@ -174,7 +186,7 @@ then ranked by their number of inliers and their parameters are recomputed by us
 only with the inliers.
 
 The transformation parameters are refined in the ```svt_av1_refine_integerized_param``` function.
-It uses the ```eb_av1_warp_error``` function to estimate the error between the reference frame
+It uses the ```svt_av1_warp_error``` function to estimate the error between the reference frame
 and the current frame in order to select the model with the smallest error.
 
 As saving global motion parameters takes space in the bit stream, the global motion model
@@ -193,19 +205,8 @@ The AV1 specifications define four global motion types:
 
   - AFFINE for an affine model.
 
-In the ```DetectGlobalMotion``` function, only the ROTZOOM and AFFINE models
-are considered. The evaluation of the TRANSLATION model is not very
-useful since translations can already be well captured by other local
-predictors.
 
-#### Mode decision
-
-A summary of the main function calls associated with global motion
-compensation in MD is given in Figure 3.
-
-![gm_fig3](./img/gm_fig3.png)
-
-##### Figure 3. Main function calls associated with global motion compensation in MD.
+#### Injection and processing
 
 Each block that is 8x8 or larger in size can be a candidate for local or
 global warped motion. For each block, we insert in the
@@ -219,20 +220,20 @@ To identify global warped motion candidates, the
 compound mode for warped motions for the case where high bit-depth is
 enabled and for the case where it is not.
 
-The two main steps involved in MD are the injection of GLOBAL and GLOBAL_GLOBAL candidates, and the processing of those candidates through MD stages 0 to 2. The conditions for the injection of GLOBAL candidates are as follows:
-For the case where gm_level <= GM_DOWN:
-1.  The global motion vector points inside the current tile AND
-2.  (((Transformation Type > TRANSLATION AND block width >= 8 AND  block height >= 8) OR Transformation type <= TRANSLATION))
+The two main steps involved in MD are the injection of GLOBAL and GLOBAL_GLOBAL candidates, and the processing of those candidates through MD stages.
+The conditions for the injection of GLOBAL candidates are as follows: For the case where downsample_level <= GM_DOWN:
+1. The global motion vector points inside the current tile AND
+2. (((Transformation Type > TRANSLATION AND block width >= 8 AND block height >= 8) OR Transformation type <= TRANSLATION))
 
 Otherwise, only condition 1 above applies.
 
 The conditions for the injection of GLOBAL_GLOBAL candidates are as follows:
 
-For the case where gm_level <= GM_DOWN:
+For the case where downsample_level <= GM_DOWN:
 
-1.  isCompoundEnabled (i.e. compound reference mode) AND
-2.  allow_bipred (i.e. block height > 4 or block width > 4) AND
-3.  (List_0 Transformation type > TRANSLATION AND List_1 Transformation type > TRANSLATION))
+1. Is_compound_enabled (i.e. compound reference mode) AND
+2. allow_bipred (i.e. block height > 4 or block width > 4) AND
+3. (List_0 Transformation type > TRANSLATION AND List_1 Transformation type > TRANSLATION))
 
 Otherwise, only conditions 1 and 2 above apply.
 
@@ -244,71 +245,61 @@ The three main functions associated with the injection of GLOBAL_GLOBAL candidat
 The first two are related to the generation of inter-intra compound candidates. The third
 is related to the injection of inter-inter compound candidates.
 
-With respect to ranking the global motion candidates, the current implementation
-uses the specific class (```CAND_CLASS_8```) that adds a dedicated path for those candidates.
-This allows some of the those candidates to survive until the last and most costly stage
-of the mode decision process.
 
+## 3. Optimization of the algorithm
 
+Different quality-complexity tradeoffs of the global motion algorithm can be
+achieved by manipulating a set of control parameters that are set in the
+gm_controls() function. These control parameters are set according to the flag
+gm_level which is set in the picture decision process according to the encoder
+preset. The different parameters that are controlled by the flag gm_level are
+described in Table 2 below.
 
-## 3.  Optimization of the algorithm
+##### Table 2. Optimization flags associated with global motion compensation.
 
-In the motion estimation process, the flag compute_global_motion is used to enable global
-motion search according to the encoder preset, as indicated in Table 2.
+|**Flag**|**Level (Sequence/Picture)**|**Description**|
+|--- |--- |--- |
+|enabled|Picture|Enable/Disable global motion knob|
+|identiy_exit|Picture|0: Generate GM params for both list_0 and list_1, 1: Do not generate GM params for list_1 if list_0/ref_idx_0 is identity.|
+|rotzoom_model_only|Picture|0: Use both rotzoom and affine models, 1: Use rotzoom model only|
+|bipred_only|Picture|0: Inject both unipred and bipred GM candidates, 1: Inject only bipred GM candidates. |
+|bypass_based_on_me|Picture|Bypass global motion search based on the uniformity of motion estimation MVs. 0/1: Do not bypass/Bypass GM search. |
+|use_stationary_block|Picture|0: Do not consider stationary_block info at me-based bypass, 1: Consider stationary_block info at me-based bypass (only if bypass_based_on_me=1)|
+|use_distance_based_active_th|Picture|Active_th is the threshold used to decide on the uniformity of MVs from motion estimation. 0: Use default active_th, 1: Increase active_th based on distance to ref (only if bypass_based_on_me=1)|
+|params_refinement_steps|Picture|Specify the number of refinement steps to use in the GM parameters refinement.|
+|downsample_level|Picture|GM_FULL: Exhaustive search mode. GM_DOWN: GM search based on down-sampled resolution with a down-sampling factor of 2 in each dimension. GM_TRAN_ONLY: Translation only using ME MV|
+| use_ref_info | do GM in the closed loop instead of the open loop and use reference information 0: off 1: on |
+| layer_offset | do the detection bypass for last layer pictures   0:off     1:last layer     2:last 2 layers 3: last 3 layers |
+| corners | use a fraction of corner points for computing correspondences for RANSAC in detection. 1:1/4   2:2/4   3:3/4   4:all |
+| chess_rfn | skip global motion refinement using a chess pattern to skip blocks |
+| match_sz | change the window size for correlation calculations. must be odd. N: NxN window size goes from 1 to 15 |
+| inj_psq_glb | Inject global only if Parent SQ is global |
+| pp_enabled | enable Pre-processor for GM |
+| ref_idx0_only | limit the search to  ref index = 0 only |
 
-##### Table 2. compute_global_motion as a function of the encoder preset.
-
-| **Encoder Preset (enc_mode)** | **compute_global_motion**              |
-| ----------------------------- | -------------------------------------- |
-| M0                            | if enable_global_motion then 1, else 0 |
-| OTHERWISE                     | 0                                      |
-
-To provide a tradeoff between complexity and quality, the flag gm_level to
-specify whether the global motion search should be performed using the full
-resolution source and reference pictures (GM_FULL), whether quarter resolution
-source and reference pictures are used in the search (GM_DOWN), and whether on
-TRANSLATION mode is considered (GM_TRAN_ONLY). The settings are summarized in Figure 3.
-The flag gm_level is set to GM_FULL.
-
-##### Table 3. Description of the gm_level settings.
-
-| **gm_level**      | **Description**                                                          |
-| ----------------- | ------------------------------------------------------------------------ |
-| GM_FULL (0)       | Exhaustive search mode.                                                  |
-| GM_DOWN (1)       | Downsampled resolution with a downsampling factor of 2 in each dimension.|
-| GM_TRAN_ONLY (2)  | Translation only using ME MV.                                            |
-
+The generated global motion information may be used in all or some of the mode decision Partitioning Decision (PD) passes.
 The injection of global motion candidates in MD is controlled by the flag global_mv_injection.
-The settings of the flag depend on the PD pass, as summarized in Table 4.
 
-##### Table 4. global_mv_injection as a function of the PD_Pass and encoder preset.
-
-| **PD_PASS** | **global_mv_injection**                                                              |
-| ----------------------------- | ------------------------------------------------------------------ |
-| 0 or 1                        | 0                                                                  |
-| OTHERWISE                     | if (enable_global_motion AND (enc_mode == ENC_M0)) then 1, else 0. |
-
-
-## 4.  Signaling
+## 4. Signaling
 
 The global motion parameters are written in the bitstream for each
 encoded frame with their corresponding references.
 
-Boolean parameters encode the type of global motion models among the
-four available: IDENTITY, TRANSLATION, ROTZOOM or AFFINE (See Table 5).
+Boolean parameters encode the type of global motion models among the four available: IDENTITY, TRANSLATION, ROTZOOM or AFFINE (See Table 3).
 
-##### Table 5. Global motion types signaled in the bitstream.
+##### Table 3. Global motion types signaled in the bitstream.
 
-| **Frame level** | **Values** | **Number of bits** |
+| **Frame level** | **Values**                     | **Number of bits** |
 | --------------- | ------------------------------ | ------------------ |
 | is\_global      | {0, 1}                         | 1                  |
 | is\_rot\_zoom   | {0, 1}                         | 1                  |
 | is\_translation | {0, 1}                         | 1                  |
 
-Depending on the model complexity, several parameters are also encoded (See Table 6). Each one
-of them corresponds to coefficients of the affine transformation matrix.
+Depending on the model complexity, several parameters are also encoded (See
+Table 4). Each of those parameters corresponds to an entry in the affine
+transformation matrix.
 
-##### Table 6. Global motion parameters signaled in the bitstream.
+##### Table 4. Global motion parameters signaled in the bitstream.
 
 |**Frame level**|**Number of bits**|
 |--- |--- |
@@ -317,6 +308,14 @@ of them corresponds to coefficients of the affine transformation matrix.
 |2 parameters for TRANSLATION|Up to 12|
 |4 parameters for ROTZOOM|Up to 12|
 |6 parameters for AFFINE|Up to 12|
+
+## Notes
+
+The feature settings that are described in this document were compiled at
+v2.0.0 of the code and may not reflect the current status of the code. The
+description in this document represents an example showing how features would
+interact with the SVT architecture. For the most up-to-date settings, it's
+recommended to review the section of the code implementing this feature.
 
 ## References
 

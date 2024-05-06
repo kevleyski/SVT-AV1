@@ -51,10 +51,10 @@ struct Rational {
 };
 
 typedef struct CliInput {
-    const char *                   in_filename;
-    const char *                   out_filename;
-    FILE *                         in_file;
-    FILE *                         out_file;
+    const char                    *in_filename;
+    const char                    *out_filename;
+    FILE                          *in_file;
+    FILE                          *out_file;
     uint32_t                       width;
     uint32_t                       height;
     uint32_t                       fourcc;
@@ -78,7 +78,7 @@ typedef struct ObuDecInputContext {
 } ObuDecInputContext;
 
 typedef struct DecInputContext {
-    CliInput *          cli_ctx;
+    CliInput           *cli_ctx;
     ObuDecInputContext *obu_ctx;
 } DecInputContext;
 
@@ -108,11 +108,9 @@ typedef struct {
 } ObuHeader;
 
 int file_is_obu(CliInput *cli, ObuDecInputContext *obu_ctx);
-int obudec_read_temporal_unit(DecInputContext *input, uint8_t **buffer, size_t *bytes_read,
-                              size_t *buffer_size);
+int obudec_read_temporal_unit(DecInputContext *input, uint8_t **buffer, size_t *bytes_read, size_t *buffer_size);
 
 int file_is_ivf(CliInput *cli);
-int read_ivf_frame(FILE *infile, uint8_t **buffer, size_t *bytes_read, size_t *buffer_size,
-                   int64_t *pts);
+int read_ivf_frame(FILE *infile, uint8_t **buffer, size_t *bytes_read, size_t *buffer_size, int64_t *pts);
 
 #endif

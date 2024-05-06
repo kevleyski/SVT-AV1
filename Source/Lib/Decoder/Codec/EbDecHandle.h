@@ -26,8 +26,8 @@ extern "C" {
 
 /* This value is set to 72 to make
    DEC_PAD_VALUE a multiple of 16. */
-#define DYNIMIC_PAD_VALUE  72
-#define DEC_PAD_VALUE    (DYNIMIC_PAD_VALUE + 8)
+#define DYNIMIC_PAD_VALUE 72
+#define DEC_PAD_VALUE (DYNIMIC_PAD_VALUE + 8)
 
 /* Maximum number of frames in parallel */
 #define DEC_MAX_NUM_FRM_PRLL 1
@@ -69,7 +69,7 @@ typedef struct EbDecPicBuf {
     TemporalMvRef *mvs;
 
     /* seg map */
-    uint8_t *          segment_maps;
+    uint8_t           *segment_maps;
     SegmentationParams seg_params;
 
     /* order hint */
@@ -92,7 +92,7 @@ typedef struct CurFrameBuf {
 
     TransformInfo_t *trans_info[MAX_MB_PLANE - 1];
 
-    int8_t * cdef_strength;
+    int8_t  *cdef_strength;
     int32_t *delta_q;
     int32_t *delta_lf;
 
@@ -128,9 +128,9 @@ typedef struct FrameMiMap {
     int32_t num_mis_in_sb_wd;
 } FrameMiMap;
 
-/* Master Frame Buf containing all frame level bufs like ModeInfo
+/* Main Frame Buffer containing all frame level bufs like ModeInfo
        for all the frames in parallel */
-typedef struct MasterFrameBuf {
+typedef struct MainFrameBuf {
     CurFrameBuf cur_frame_bufs[DEC_MAX_NUM_FRM_PRLL];
 
     int32_t num_mis_in_sb;
@@ -145,7 +145,7 @@ typedef struct MasterFrameBuf {
     int32_t        tpl_mvs_size;
     int8_t         ref_frame_side[REF_FRAMES];
 
-} MasterFrameBuf;
+} MainFrameBuf;
 
 /**************************************
  * Component Private Data
@@ -178,7 +178,7 @@ typedef struct EbDecHandle {
     // Thread Handles
 
     // Module Contexts
-    void *pv_master_parse_ctxt;
+    void *pv_main_parse_ctxt;
 
     void *pv_dec_mod_ctxt;
 
@@ -225,9 +225,9 @@ typedef struct EbDecHandle {
 
     //DPB + MV, ... buf
 
-    /* Master Frame Buf containing all frame level bufs like ModeInfo
+    /* Main Frame Buffer containing all frame level bufs like ModeInfo
        for all the frames in parallel */
-    MasterFrameBuf master_frame_buf;
+    MainFrameBuf main_frame_buf;
 
     // Memory Map
     EbMemoryMapEntry *memory_map_init_address;
@@ -240,12 +240,14 @@ typedef struct EbDecHandle {
     uint8_t is_lf_enabled;
 
     // Thread Handles
-    EbHandle *            decode_thread_handle_array;
-    EbBool                start_thread_process;
+    EbHandle             *decode_thread_handle_array;
+    Bool                  start_thread_process;
     EbHandle              thread_semaphore;
     struct DecThreadCtxt *thread_ctxt_pa;
 
-    EbBool is_16bit_pipeline; // internal bit-depth: when equals 1 internal bit-depth is 16bits regardless of the input bit-depth
+    // internal bit-depth: when equals 1 internal bit-depth is 16bits regardless of the input
+    // bit-depth
+    Bool is_16bit_pipeline;
 } EbDecHandle;
 
 /* Thread level context data */
