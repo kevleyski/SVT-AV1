@@ -1,0 +1,17 @@
+<component name="ProjectCodeStyleConfiguration">
+  <code_scheme name="Project" version="173">
+    <clangFormatSettings>
+      <option name="ENABLED" value="true" />
+    </clangFormatSettings>
+    <codeStyleSettings language="JSON">
+      <option name="RIGHT_MARGIN" value="500" />
+      <option name="KEEP_LINE_BREAKS" value="false" />
+      <option name="SPACE_WITHIN_BRACKETS" value="true" />
+      <option name="SPACE_WITHIN_BRACES" value="true" />
+      <indentOptions>
+        <option name="TAB_SIZE" value="2" />
+        <option name="KEEP_INDENTS_ON_EMPTY_LINES" value="true" />
+      </indentOptions>
+    </codeStyleSettings>
+  </code_scheme>
+</component>
