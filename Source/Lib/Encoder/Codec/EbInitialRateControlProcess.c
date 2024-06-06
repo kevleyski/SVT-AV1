@@ -181,19 +181,14 @@ void validate_pic_for_tpl(PictureParentControlSet *pcs, uint32_t pic_index) {
 
 uint8_t svt_aom_get_tpl_group_level(uint8_t tpl, int8_t enc_mode, SvtAv1RcMode rc_mode) {
     uint8_t tpl_group_level;
-
-    if (!tpl) {
+    if (!tpl)
         tpl_group_level = 0;
-    } else if (enc_mode <= ENC_M6) {
+    else if (enc_mode <= ENC_M5)
         tpl_group_level = 1;
-    } else if (enc_mode <= ENC_M7) {
-        tpl_group_level = 2;
-    } else if (enc_mode <= ENC_M10 || (rc_mode == SVT_AV1_RC_MODE_VBR && enc_mode <= ENC_M11)) {
+    else if (enc_mode <= ENC_M10 || (rc_mode == SVT_AV1_RC_MODE_VBR && enc_mode <= ENC_M11))
         tpl_group_level = 3;
-    } else {
+    else
         tpl_group_level = 4;
-    }
-
     return tpl_group_level;
 }
 
@@ -285,17 +280,12 @@ uint8_t svt_aom_set_tpl_group(PictureParentControlSet *pcs, uint8_t tpl_group_le
     return tpl_ctrls->synth_blk_size;
 }
 
-static uint8_t get_tpl_params_level(uint64_t dist_per_group, int8_t enc_mode, SvtAv1RcMode rc_mode) {
-    uint8_t  tpl_params_level;
-    uint64_t cplx_group_th = 10000;
-
+static uint8_t get_tpl_params_level(int8_t enc_mode, SvtAv1RcMode rc_mode) {
+    uint8_t tpl_params_level;
     if (enc_mode <= ENC_M4) {
         tpl_params_level = 1;
-    } else if (enc_mode <= ENC_M6) {
-        if (dist_per_group < cplx_group_th)
-            tpl_params_level = 3;
-        else
-            tpl_params_level = 2;
+    } else if (enc_mode <= ENC_M7) {
+        tpl_params_level = 3;
     } else if (enc_mode <= ENC_M10 || (rc_mode == SVT_AV1_RC_MODE_VBR && enc_mode <= ENC_M11)) {
         tpl_params_level = 4;
     } else {
@@ -320,7 +310,7 @@ static void set_tpl_params(PictureParentControlSet *pcs, uint8_t tpl_level) {
         tpl_ctrls->dispenser_search_level  = 0;
         tpl_ctrls->subsample_tx            = 0;
         tpl_ctrls->subpel_depth            = FULL_PEL;
-
+        tpl_ctrls->subpel_diag_refinement  = 0;
         break;
     case 1:
         tpl_ctrls->compute_rate            = 1;
@@ -332,6 +322,7 @@ static void set_tpl_params(PictureParentControlSet *pcs, uint8_t tpl_level) {
         tpl_ctrls->dispenser_search_level  = 0;
         tpl_ctrls->subsample_tx            = 0;
         tpl_ctrls->subpel_depth            = QUARTER_PEL;
+        tpl_ctrls->subpel_diag_refinement  = 0;
         break;
     case 2:
         tpl_ctrls->compute_rate            = 0;
@@ -343,6 +334,7 @@ static void set_tpl_params(PictureParentControlSet *pcs, uint8_t tpl_level) {
         tpl_ctrls->dispenser_search_level  = 0;
         tpl_ctrls->subsample_tx            = 0;
         tpl_ctrls->subpel_depth            = QUARTER_PEL;
+        tpl_ctrls->subpel_diag_refinement  = 0;
         break;
     case 3:
         tpl_ctrls->compute_rate            = 0;
@@ -354,6 +346,7 @@ static void set_tpl_params(PictureParentControlSet *pcs, uint8_t tpl_level) {
         tpl_ctrls->dispenser_search_level  = 0;
         tpl_ctrls->subsample_tx            = 0;
         tpl_ctrls->subpel_depth            = QUARTER_PEL;
+        tpl_ctrls->subpel_diag_refinement  = 4;
         break;
     case 4:
         tpl_ctrls->compute_rate            = 0;
@@ -365,6 +358,7 @@ static void set_tpl_params(PictureParentControlSet *pcs, uint8_t tpl_level) {
         tpl_ctrls->dispenser_search_level  = 0;
         tpl_ctrls->subsample_tx            = 0;
         tpl_ctrls->subpel_depth            = FULL_PEL;
+        tpl_ctrls->subpel_diag_refinement  = 4;
         break;
     case 5:
         tpl_ctrls->compute_rate            = 0;
@@ -376,6 +370,7 @@ static void set_tpl_params(PictureParentControlSet *pcs, uint8_t tpl_level) {
         tpl_ctrls->dispenser_search_level  = 1;
         tpl_ctrls->subsample_tx            = 2;
         tpl_ctrls->subpel_depth            = FULL_PEL;
+        tpl_ctrls->subpel_diag_refinement  = 4;
         break;
     default: assert(0); break;
     }
@@ -480,22 +475,11 @@ void store_extended_group(PictureParentControlSet *pcs, InitialRateControlContex
         }
     }
 
-    uint32_t pic_index;
-    uint64_t dist_per_group = 0;
-
-    for (pic_index = 0; pic_index < pcs->tpl_group_size; pic_index++) {
-        if (pcs->tpl_valid_pic[pic_index]) {
-            dist_per_group += pcs->tpl_group[pic_index]->norm_me_dist;
-        }
-    }
-    dist_per_group = (dist_per_group / pcs->used_tpl_frame_num);
-
-    for (pic_index = 0; pic_index < pcs->tpl_group_size; pic_index++) {
+    for (uint32_t pic_index = 0; pic_index < pcs->tpl_group_size; pic_index++) {
         if (!pcs->tpl_group[pic_index]->tpl_params_ready) {
             set_tpl_params(
                 pcs->tpl_group[pic_index],
-                get_tpl_params_level(
-                    dist_per_group, pcs->scs->static_config.enc_mode, pcs->scs->static_config.rate_control_mode));
+                get_tpl_params_level(pcs->scs->static_config.enc_mode, pcs->scs->static_config.rate_control_mode));
             pcs->tpl_group[pic_index]->tpl_params_ready = 1;
         }
     }

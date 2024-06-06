@@ -118,7 +118,6 @@ EbErrorType svt_aom_enc_dec_context_ctor(EbThreadContext *thread_ctx, const EbEn
                .bot_padding        = 0,
                .split_mode         = FALSE,
            });
-    const bool rtc_tune = (static_config->pred_structure == SVT_AV1_PRED_LOW_DELAY_B) ? true : false;
     // Mode Decision Context
     EB_NEW(ed_ctx->md_ctx,
            svt_aom_mode_decision_context_ctor,
@@ -130,8 +129,7 @@ EbErrorType svt_aom_enc_dec_context_ctor(EbThreadContext *thread_ctx, const EbEn
            0,
            0,
            enable_hbd_mode_decision == DEFAULT ? 2 : enable_hbd_mode_decision,
-           static_config->screen_content_mode,
-           rtc_tune);
+           static_config->screen_content_mode);
     if (enable_hbd_mode_decision)
         ed_ctx->md_ctx->input_sample16bit_buffer = ed_ctx->input_sample16bit_buffer;
 
@@ -1830,7 +1828,13 @@ void set_block_based_depth_refinement_controls(ModeDecisionContext *ctx, uint8_t
         depth_refinement_ctrls->parent_to_current_th            = 50;
         depth_refinement_ctrls->sub_to_current_th               = 50;
         depth_refinement_ctrls->parent_max_cost_th_mult         = 10;
-        depth_refinement_ctrls->cost_band_based_modulation      = 0;
+        depth_refinement_ctrls->cost_band_based_modulation      = 1;
+        depth_refinement_ctrls->max_cost_multiplier             = 400;
+        depth_refinement_ctrls->max_band_cnt                    = 4;
+        depth_refinement_ctrls->decrement_per_band[0]           = MAX_SIGNED_VALUE;
+        depth_refinement_ctrls->decrement_per_band[1]           = 15;
+        depth_refinement_ctrls->decrement_per_band[2]           = 10;
+        depth_refinement_ctrls->decrement_per_band[3]           = 5;
         depth_refinement_ctrls->up_to_2_depth                   = 0;
         depth_refinement_ctrls->limit_4x4_depth                 = 0;
         depth_refinement_ctrls->sub_to_current_pd0_coeff_th     = 0;
@@ -1839,50 +1843,7 @@ void set_block_based_depth_refinement_controls(ModeDecisionContext *ctx, uint8_t
         depth_refinement_ctrls->split_rate_th                   = 10;
         depth_refinement_ctrls->q_weight                        = 10;
         break;
-
     case 4:
-        depth_refinement_ctrls->enabled                         = 1;
-        depth_refinement_ctrls->prune_child_if_not_avail        = 1;
-        depth_refinement_ctrls->parent_to_current_th            = 50;
-        depth_refinement_ctrls->sub_to_current_th               = 50;
-        depth_refinement_ctrls->parent_max_cost_th_mult         = 10;
-        depth_refinement_ctrls->cost_band_based_modulation      = 1;
-        depth_refinement_ctrls->max_cost_multiplier             = 400;
-        depth_refinement_ctrls->max_band_cnt                    = 4;
-        depth_refinement_ctrls->decrement_per_band[0]           = MAX_SIGNED_VALUE;
-        depth_refinement_ctrls->decrement_per_band[1]           = 15;
-        depth_refinement_ctrls->decrement_per_band[2]           = 10;
-        depth_refinement_ctrls->decrement_per_band[3]           = 5;
-        depth_refinement_ctrls->up_to_2_depth                   = 0;
-        depth_refinement_ctrls->limit_4x4_depth                 = 0;
-        depth_refinement_ctrls->sub_to_current_pd0_coeff_th     = 0;
-        depth_refinement_ctrls->sub_to_current_pd0_coeff_offset = 0;
-        depth_refinement_ctrls->lower_depth_split_cost_th       = 20;
-        depth_refinement_ctrls->split_rate_th                   = 10;
-        depth_refinement_ctrls->q_weight                        = 10;
-        break;
-    case 5:
-        depth_refinement_ctrls->enabled                         = 1;
-        depth_refinement_ctrls->prune_child_if_not_avail        = 1;
-        depth_refinement_ctrls->parent_to_current_th            = 50;
-        depth_refinement_ctrls->sub_to_current_th               = 50;
-        depth_refinement_ctrls->parent_max_cost_th_mult         = 10;
-        depth_refinement_ctrls->cost_band_based_modulation      = 1;
-        depth_refinement_ctrls->max_cost_multiplier             = 400;
-        depth_refinement_ctrls->max_band_cnt                    = 4;
-        depth_refinement_ctrls->decrement_per_band[0]           = MAX_SIGNED_VALUE;
-        depth_refinement_ctrls->decrement_per_band[1]           = 15;
-        depth_refinement_ctrls->decrement_per_band[2]           = 10;
-        depth_refinement_ctrls->decrement_per_band[3]           = 5;
-        depth_refinement_ctrls->up_to_2_depth                   = 0;
-        depth_refinement_ctrls->limit_4x4_depth                 = 0;
-        depth_refinement_ctrls->sub_to_current_pd0_coeff_th     = 20;
-        depth_refinement_ctrls->sub_to_current_pd0_coeff_offset = 20;
-        depth_refinement_ctrls->lower_depth_split_cost_th       = 20;
-        depth_refinement_ctrls->split_rate_th                   = 10;
-        depth_refinement_ctrls->q_weight                        = 10;
-        break;
-    case 6:
         depth_refinement_ctrls->enabled                         = 1;
         depth_refinement_ctrls->prune_child_if_not_avail        = 1;
         depth_refinement_ctrls->parent_to_current_th            = 25;
@@ -1903,7 +1864,7 @@ void set_block_based_depth_refinement_controls(ModeDecisionContext *ctx, uint8_t
         depth_refinement_ctrls->split_rate_th                   = 10;
         depth_refinement_ctrls->q_weight                        = 10;
         break;
-    case 7:
+    case 5:
         depth_refinement_ctrls->enabled                         = 1;
         depth_refinement_ctrls->prune_child_if_not_avail        = 1;
         depth_refinement_ctrls->parent_to_current_th            = 20;
@@ -1924,7 +1885,7 @@ void set_block_based_depth_refinement_controls(ModeDecisionContext *ctx, uint8_t
         depth_refinement_ctrls->split_rate_th                   = 10;
         depth_refinement_ctrls->q_weight                        = 10;
         break;
-    case 8:
+    case 6:
         depth_refinement_ctrls->enabled                         = 1;
         depth_refinement_ctrls->prune_child_if_not_avail        = 1;
         depth_refinement_ctrls->parent_to_current_th            = 15;
@@ -1945,7 +1906,7 @@ void set_block_based_depth_refinement_controls(ModeDecisionContext *ctx, uint8_t
         depth_refinement_ctrls->split_rate_th                   = 10;
         depth_refinement_ctrls->q_weight                        = 10;
         break;
-    case 9:
+    case 7:
         depth_refinement_ctrls->enabled                         = 1;
         depth_refinement_ctrls->prune_child_if_not_avail        = 1;
         depth_refinement_ctrls->parent_to_current_th            = 10;
@@ -1966,7 +1927,7 @@ void set_block_based_depth_refinement_controls(ModeDecisionContext *ctx, uint8_t
         depth_refinement_ctrls->split_rate_th                   = 10;
         depth_refinement_ctrls->q_weight                        = 10;
         break;
-    case 10:
+    case 8:
         depth_refinement_ctrls->enabled                         = 1;
         depth_refinement_ctrls->prune_child_if_not_avail        = 1;
         depth_refinement_ctrls->parent_to_current_th            = 5;
@@ -1987,7 +1948,7 @@ void set_block_based_depth_refinement_controls(ModeDecisionContext *ctx, uint8_t
         depth_refinement_ctrls->split_rate_th                   = 10;
         depth_refinement_ctrls->q_weight                        = 10;
         break;
-    case 11:
+    case 9:
         depth_refinement_ctrls->enabled                         = 1;
         depth_refinement_ctrls->prune_child_if_not_avail        = 1;
         depth_refinement_ctrls->parent_to_current_th            = 5;
@@ -2008,7 +1969,7 @@ void set_block_based_depth_refinement_controls(ModeDecisionContext *ctx, uint8_t
         depth_refinement_ctrls->split_rate_th                   = 10;
         depth_refinement_ctrls->q_weight                        = 10;
         break;
-    case 12:
+    case 10:
         depth_refinement_ctrls->enabled                         = 1;
         depth_refinement_ctrls->prune_child_if_not_avail        = 1;
         depth_refinement_ctrls->parent_to_current_th            = 5;
@@ -2029,7 +1990,7 @@ void set_block_based_depth_refinement_controls(ModeDecisionContext *ctx, uint8_t
         depth_refinement_ctrls->split_rate_th                   = 10;
         depth_refinement_ctrls->q_weight                        = 10;
         break;
-    case 13:
+    case 11:
         depth_refinement_ctrls->enabled                         = 1;
         depth_refinement_ctrls->prune_child_if_not_avail        = 1;
         depth_refinement_ctrls->parent_to_current_th            = -25;
@@ -2051,8 +2012,7 @@ void set_block_based_depth_refinement_controls(ModeDecisionContext *ctx, uint8_t
         depth_refinement_ctrls->q_weight                        = 10;
         break;
         // Pred_Only
-        // Pred_Only
-    case 14:
+    case 12:
         depth_refinement_ctrls->enabled                         = 1;
         depth_refinement_ctrls->prune_child_if_not_avail        = 1;
         depth_refinement_ctrls->parent_to_current_th            = MIN_SIGNED_VALUE;
@@ -2071,7 +2031,6 @@ void set_block_based_depth_refinement_controls(ModeDecisionContext *ctx, uint8_t
         break;
     }
 }
-
 static void copy_neighbour_arrays_light_pd0(PictureControlSet *pcs, ModeDecisionContext *ctx, uint32_t src_idx,
                                             uint32_t dst_idx, uint32_t sb_org_x, uint32_t sb_org_y) {
     const uint16_t tile_idx = ctx->tile_index;
@@ -3406,13 +3365,13 @@ void *svt_aom_mode_decision_kernel(void *input_ptr) {
                                                                    &pcs->ec_ctx_array[sb_index]);
                             ed_ctx->md_ctx->md_rate_est_ctx = ed_ctx->md_ctx->rate_est_table;
                         }
+
                         // Configure the SB
                         svt_aom_mode_decision_configure_sb(
                             ed_ctx->md_ctx,
                             pcs,
                             sb_ptr->qindex,
                             svt_aom_get_me_qindex(pcs, sb_ptr, scs->seq_header.sb_size == BLOCK_128X128));
-
                         // signals set once per SB (i.e. not per PD)
                         svt_aom_sig_deriv_enc_dec_common(scs, pcs, ed_ctx->md_ctx);
 
