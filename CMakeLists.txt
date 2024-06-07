@@ -9,27 +9,6 @@
 # PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
 #
 
-#KJSL
-#-- Installing: /usr/local/lib/libSvtAv1Enc.2.1.0.dylib
-#-- Installing: /usr/local/lib/libSvtAv1Enc.2.dylib
-#-- Installing: /usr/local/lib/libSvtAv1Enc.dylib
-#-- Installing: /usr/local/lib/pkgconfig/SvtAv1Enc.pc
-#-- Installing: /usr/local/lib/libSvtAv1Dec.0.8.7.dylib
-#-- Installing: /usr/local/lib/libSvtAv1Dec.0.dylib
-#-- Installing: /usr/local/lib/libSvtAv1Dec.dylib
-#-- Installing: /usr/local/lib/pkgconfig/SvtAv1Dec.pc
-#-- Installing: /usr/local/bin/SvtAv1EncApp
-#-- Installing: /usr/local/bin/SvtAv1DecApp
-#-- Installing: /usr/local/include/svt-av1
-#-- Installing: /usr/local/include/svt-av1/EbSvtAv1Dec.h
-#-- Installing: /usr/local/include/svt-av1/EbSvtAv1.h
-#-- Installing: /usr/local/include/svt-av1/EbSvtAv1Enc.h
-#-- Installing: /usr/local/include/svt-av1/EbSvtAv1ErrorCodes.h
-#-- Installing: /usr/local/include/svt-av1/EbDebugMacros.h
-#-- Installing: /usr/local/include/svt-av1/EbSvtAv1ExtFrameBuf.h
-#-- Installing: /usr/local/include/svt-av1/EbSvtAv1Formats.h
-#-- Installing: /usr/local/include/svt-av1/EbSvtAv1Metadata.h
-
 cmake_minimum_required(VERSION 3.16)
 
 if("${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR}")
